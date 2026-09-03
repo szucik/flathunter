@@ -56,6 +56,13 @@ class Parser {
             rooms: this.parseRooms(`${title} ${paramsText}`),
             ...params,
             ...location,
+            address: null,
+            floor: null,
+            totalFloors: null,
+            ownershipType: null,
+            rent: null,
+            commission: null,
+            listingStatus: null,
             buildingType: null,
             hasGarage: null,
             hasElevator: null,
@@ -92,13 +99,15 @@ class Parser {
         return match ? Number(match[1]) : null;
     }
 
-    private parseLocation(locationText: string): Pick<Flat, 'district' | 'createdAt'> {
+    private parseLocation(locationText: string): Pick<Flat, 'district' | 'createdAt' | 'publishedAt' | 'refreshedAt'> {
         const [locationPart = '', datePart = ''] = locationText.split(' - ');
         const locationParts = locationPart.split(', ');
 
         return {
             district: locationParts.length > 1 ? locationParts[1].trim() : null,
-            createdAt: datePart || null
+            createdAt: datePart || null,
+            publishedAt: datePart && !/odświeżono|odswiezono/i.test(datePart) ? datePart : null,
+            refreshedAt: datePart && /odświeżono|odswiezono/i.test(datePart) ? datePart : null
         };
     }
 }

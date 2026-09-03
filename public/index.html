@@ -16,7 +16,7 @@
         select, button { min-height: 42px; border: 1px solid var(--line); border-radius: 4px; padding: 0 14px; background: var(--card); color: var(--ink); font: inherit; cursor: pointer; }
         button { border-color: var(--ink); background: var(--ink); color: white; }
         #status { margin: 22px 0 14px; color: var(--muted); }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
         article { display: flex; flex-direction: column; min-height: 300px; padding: 20px; background: var(--card); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 8px 24px #40362b0d; }
         article h2 { margin: 0 0 14px; font-size: 1.25rem; line-height: 1.15; font-weight: 600; }
         .price { margin-bottom: 16px; color: var(--accent); font-size: 1.45rem; font-weight: 700; }
@@ -24,6 +24,15 @@
         .facts strong { display: block; color: var(--ink); font-size: .95rem; }
         .description { flex: 1; margin: 0 0 18px; color: var(--muted); font-size: .94rem; }
         article a { color: var(--ink); font-family: sans-serif; font-weight: 700; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+        .sources { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 14px; font: 700 .75rem/1.2 sans-serif; text-transform: uppercase; }
+        .source { padding: 5px 7px; border: 1px solid var(--line); border-radius: 3px; }
+        .portal { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); }
+        .portal + .portal { margin-top: 12px; }
+        .portal-title { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 5px; font: 700 .8rem/1.2 sans-serif; text-transform: uppercase; }
+        .portal-name { display: inline-flex; align-items: center; gap: 6px; }
+        .portal-badge { padding: 3px 5px; border-radius: 3px; background: var(--mint); color: var(--ink); font-size: .68rem; }
+        .portal-title a { font-size: .8rem; }
+        .portal-price { color: var(--accent); font-weight: 700; }
         .empty { padding: 35px 0; color: var(--muted); }
         @media (max-width: 700px) { header { display: block; padding-top: 28px; } header p { margin-top: 18px; } }
     </style>
@@ -53,35 +62,54 @@
             const params = new URLSearchParams({ limit: '500' });
             if (districtElement.value) params.set('district', districtElement.value);
             if (sourceElement.value) params.set('source', sourceElement.value);
-            const response = await fetch(`/api/listings?${params}`);
+            const response = await fetch(`/api/properties?${params}`);
             const data = await response.json();
-            renderListings(data.listings);
-            statusElement.textContent = `${data.count} ofert`;
+            renderProperties(data.properties);
+            statusElement.textContent = `${data.count} nieruchomości, ${data.properties.reduce((total, property) => total + property.listings.length, 0)} ofert`;
         }
 
-        function renderListings(listings) {
-            listingsElement.innerHTML = listings.length ? listings.map(listing => `
+        function renderProperties(properties) {
+            listingsElement.innerHTML = properties.length ? properties.map(property => {
+                const main = property.listings[0];
+                return `
                 <article>
-                    <h2>${escapeHtml(listing.title)}</h2>
-                    <div class="price">${formatNumber(listing.price)} zł</div>
+                    <h2>${escapeHtml(main.title)}</h2>
+                    <div class="sources">${property.sources.map(source => `<span class="source">${escapeHtml(source)}</span>`).join('')}</div>
+                    <div class="price">od ${formatNumber(property.lowestPrice)} zł</div>
                     <div class="facts">
-                        <div>Dzielnica<strong>${escapeHtml(listing.district || 'Nieznana')}</strong></div>
-                        <div>Metraż<strong>${listing.area ?? '-'} m²</strong></div>
-                        <div>Pokoje<strong>${listing.rooms ?? '-'}</strong></div>
-                        <div>Źródło<strong>${escapeHtml(listing.source)}</strong></div>
-                        <div>Garaż<strong>${formatBoolean(listing.hasGarage)}</strong></div>
-                        <div>Winda<strong>${formatBoolean(listing.hasElevator)}</strong></div>
-                        <div>Balkon<strong>${formatBoolean(listing.hasBalcony)}</strong></div>
-                        <div>Rok budowy<strong>${listing.buildYear ?? '-'}</strong></div>
+                        <div>Dzielnica<strong>${escapeHtml(main.district || 'Nieznana')}</strong></div>
+                        <div>Metraż<strong>${main.area ?? '-'} m²</strong></div>
+                        <div>Pokoje<strong>${main.rooms ?? '-'}</strong></div>
+                        <div>Piętro<strong>${main.floor ?? '-'}/${main.totalFloors ?? '-'}</strong></div>
+                        <div>Własność<strong>${escapeHtml(main.ownershipType || '-')}</strong></div>
+                        <div>Winda<strong>${formatBoolean(main.hasElevator)}</strong></div>
+                        <div>Garaż<strong>${formatBoolean(main.hasGarage)}</strong></div>
+                        <div>Balkon<strong>${formatBoolean(main.hasBalcony)}</strong></div>
+                        <div>Rok budowy<strong>${main.buildYear ?? '-'}</strong></div>
+                        <div>Czynsz<strong>${formatNumber(main.rent)} zł</strong></div>
                     </div>
-                    <p class="description">${escapeHtml((listing.description || 'Brak opisu').slice(0, 260))}</p>
-                    <a href="${escapeAttribute(listing.url)}" target="_blank" rel="noreferrer">Otwórz ogłoszenie →</a>
+                    <p class="description">${escapeHtml((main.description || 'Brak opisu').slice(0, 260))}</p>
+                    ${property.listings.map(listing => `
+                        <div class="portal">
+                            <div class="portal-title"><span class="portal-name"><span class="portal-badge">${getPortalName(listing.url)}</span>${escapeHtml(listing.source)}</span><span class="portal-price">${formatNumber(listing.price)} zł</span></div>
+                            <a href="${escapeAttribute(listing.url)}" target="_blank" rel="noreferrer">Otwórz ofertę →</a>
+                        </div>
+                    `).join('')}
                 </article>
-            `).join('') : '<p class="empty">Brak ofert spełniających filtry.</p>';
+            `;
+            }).join('') : '<p class="empty">Brak ofert spełniających filtry.</p>';
         }
 
         function formatNumber(value) { return value === null ? '-' : new Intl.NumberFormat('pl-PL').format(value); }
         function formatBoolean(value) { return value === null ? 'Nieznane' : value ? 'Tak' : 'Nie'; }
+        function getPortalName(value) {
+            try {
+                const hostname = new URL(value).hostname.toLowerCase();
+                if (hostname.includes('otodom')) return 'OTODOM';
+                if (hostname.includes('olx')) return 'OLX';
+            } catch (_) {}
+            return 'INNE';
+        }
         function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character])); }
         function escapeAttribute(value) { return escapeHtml(value); }
 
@@ -92,8 +120,10 @@
         fetch('/api/listings?limit=500').then(response => response.json()).then(data => {
             [...new Set(data.listings.map(listing => listing.district).filter(Boolean))].sort().forEach(value => districtElement.add(new Option(value, value)));
             [...new Set(data.listings.map(listing => listing.source).filter(Boolean))].sort().forEach(value => sourceElement.add(new Option(value, value)));
-            renderListings(data.listings);
-            statusElement.textContent = `${data.count} ofert`;
+            return fetch('/api/properties?limit=500');
+        }).then(response => response.json()).then(data => {
+            renderProperties(data.properties);
+            statusElement.textContent = `${data.count} nieruchomości, ${data.properties.reduce((total, property) => total + property.listings.length, 0)} ofert`;
         }).catch(() => { statusElement.textContent = 'Nie udało się pobrać ofert.'; });
     </script>
 </body>

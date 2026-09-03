@@ -8,7 +8,7 @@ exports.createScheduler = createScheduler;
 exports.startScheduler = startScheduler;
 const node_cron_1 = __importDefault(require("node-cron"));
 const index_1 = __importDefault(require("./index"));
-exports.SCHEDULE = '0 8,14,20 * * *';
+exports.SCHEDULE = '0 */8 * * *';
 function createScheduler(run, schedule = exports.SCHEDULE, scheduleFunction = node_cron_1.default.schedule) {
     let isRunning = false;
     return scheduleFunction(schedule, () => {

@@ -84,6 +84,13 @@ class Parser {
             rooms: this.parseRooms(`${title} ${paramsText}`),
             ...params,
             ...location,
+            address: null,
+            floor: null,
+            totalFloors: null,
+            ownershipType: null,
+            rent: null,
+            commission: null,
+            listingStatus: null,
             buildingType: null,
             hasGarage: null,
             hasElevator: null,
@@ -119,7 +126,9 @@ class Parser {
         const locationParts = locationPart.split(', ');
         return {
             district: locationParts.length > 1 ? locationParts[1].trim() : null,
-            createdAt: datePart || null
+            createdAt: datePart || null,
+            publishedAt: datePart && !/odświeżono|odswiezono/i.test(datePart) ? datePart : null,
+            refreshedAt: datePart && /odświeżono|odswiezono/i.test(datePart) ? datePart : null
         };
     }
 }
