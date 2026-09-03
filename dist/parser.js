@@ -72,7 +72,8 @@ class Parser {
         const fullUrl = this.normalizeListingUrl(url.startsWith('http') ? url : `https://www.olx.pl${url}`);
         const title = card.find('a[data-testid="card-title-link"] h4').text().trim();
         const price = this.parsePrice(card.find('[data-testid="ad-price"]').text().trim());
-        const params = this.parseParams(card.find('[data-testid="blueprint-card-param-icon"]').parent().text().trim());
+        const paramsText = card.find('[data-testid="blueprint-card-param-icon"]').parent().text().trim();
+        const params = this.parseParams(paramsText);
         const location = this.parseLocation(card.find('[data-testid="location-date"]').text().trim());
         return {
             source: 'unknown',
@@ -80,6 +81,7 @@ class Parser {
             title,
             description: null,
             price,
+            rooms: this.parseRooms(`${title} ${paramsText}`),
             ...params,
             ...location,
             buildingType: null,
@@ -106,6 +108,11 @@ class Parser {
             area: areaMatch ? parseFloat(areaMatch[1].replace(',', '.')) : null,
             pricePerM2: pricePerM2Match ? parseFloat(pricePerM2Match[1].replace(',', '.')) : null
         };
+    }
+    parseRooms(text) {
+        const match = text.match(/(?:pokoje?|pok[óo]j|pomieszczenia)\s*[:\-]?\s*(\d)/i)
+            || text.match(/(\d)\s*(?:pokoje?|pok[óo]j)/i);
+        return match ? Number(match[1]) : null;
     }
     parseLocation(locationText) {
         const [locationPart = '', datePart = ''] = locationText.split(' - ');

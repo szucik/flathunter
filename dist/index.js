@@ -7,6 +7,7 @@ require("dotenv/config");
 const scraper_1 = __importDefault(require("./scraper"));
 const database_1 = __importDefault(require("./database"));
 const listing_analyzer_1 = __importDefault(require("./listing-analyzer"));
+const property_matcher_1 = __importDefault(require("./property-matcher"));
 async function main() {
     console.log('OLX Scraper - Start');
     console.log('='.repeat(50));
@@ -22,6 +23,7 @@ async function main() {
     const minArea = parseInt(process.env.MIN_AREA || '0', 10);
     const source = new scraper_1.default();
     const analyzer = new listing_analyzer_1.default();
+    const matcher = new property_matcher_1.default();
     const db = new database_1.default();
     try {
         console.log(`URL: ${targetUrl}`);
@@ -33,6 +35,7 @@ async function main() {
         console.log(`Zrodlo: ${source.name}`);
         const knownUrls = new Set(db.getAllUrls());
         const flats = await source.scrape(targetUrl, maxPages, knownUrls, maxAgeDays);
+        const storedFlats = db.getAllFlats();
         let newCount = 0;
         let filteredCount = 0;
         for (const flat of flats) {
@@ -54,6 +57,17 @@ async function main() {
                 continue;
             }
             if (db.insertFlat(analyzedFlat)) {
+                const savedFlat = db.getFlatByUrl(analyzedFlat.url);
+                if (savedFlat) {
+                    const match = matcher.findBestMatch(analyzedFlat, storedFlats);
+                    if (match) {
+                        const groupId = db.getPropertyGroupId(match.flat.id) ?? db.createPropertyGroup();
+                        db.assignPropertyGroup(match.flat.id, groupId);
+                        db.assignPropertyGroup(savedFlat.id, groupId);
+                        console.log(`Mozliwe powiazanie z ${match.flat.source} (zgodnosc: ${match.score}/100)`);
+                    }
+                    storedFlats.push(savedFlat);
+                }
                 newCount++;
                 printFlat(analyzedFlat);
             }

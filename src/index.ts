@@ -2,6 +2,7 @@ import 'dotenv/config';
 import OlxScraper from './scraper';
 import FlatsDatabase from './database';
 import ListingAnalyzer from './listing-analyzer';
+import PropertyMatcher from './property-matcher';
 import type { Flat, ListingSource } from './types';
 
 async function main(): Promise<void> {
@@ -20,6 +21,7 @@ async function main(): Promise<void> {
     const minArea = parseInt(process.env.MIN_AREA || '0', 10);
     const source: ListingSource = new OlxScraper();
     const analyzer = new ListingAnalyzer();
+    const matcher = new PropertyMatcher();
     const db = new FlatsDatabase();
 
     try {
@@ -33,6 +35,7 @@ async function main(): Promise<void> {
         console.log(`Zrodlo: ${source.name}`);
         const knownUrls = new Set(db.getAllUrls());
         const flats = await source.scrape(targetUrl, maxPages, knownUrls, maxAgeDays);
+        const storedFlats = db.getAllFlats();
         let newCount = 0;
         let filteredCount = 0;
 
@@ -56,6 +59,17 @@ async function main(): Promise<void> {
             }
 
             if (db.insertFlat(analyzedFlat)) {
+                const savedFlat = db.getFlatByUrl(analyzedFlat.url);
+                if (savedFlat) {
+                    const match = matcher.findBestMatch(analyzedFlat, storedFlats);
+                    if (match) {
+                        const groupId = db.getPropertyGroupId(match.flat.id) ?? db.createPropertyGroup();
+                        db.assignPropertyGroup(match.flat.id, groupId);
+                        db.assignPropertyGroup(savedFlat.id, groupId);
+                        console.log(`Mozliwe powiazanie z ${match.flat.source} (zgodnosc: ${match.score}/100)`);
+                    }
+                    storedFlats.push(savedFlat);
+                }
                 newCount++;
                 printFlat(analyzedFlat);
             }

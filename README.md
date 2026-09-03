@@ -13,6 +13,7 @@ The scraper uses a source adapter abstraction. Application code depends on the `
 - Filters listings by district, price, and minimum area.
 - Stores listings in a local SQLite database.
 - Avoids inserting the same URL more than once.
+- Groups probable cross-portal duplicates into one property group while keeping each listing separate.
 - Runs manually or on a schedule three times per day.
 - Uses TypeScript with strict type checking.
 - Keeps the browser headless by default.
@@ -205,6 +206,7 @@ The `flats` table currently contains:
 - `title`: listing title.
 - `price`: price in PLN.
 - `area`: area in square meters.
+- `rooms`: detected number of rooms.
 - `price_per_m2`: price per square meter.
 - `district`: parsed district name.
 - `created_at`: date text displayed by OLX.
@@ -212,6 +214,7 @@ The `flats` table currently contains:
 - `building_type`: detected type such as `wielka plyta`, `cegla`, or `kamienica`.
 - `has_garage`, `has_elevator`, `has_balcony`: detected boolean values.
 - `build_year`: detected construction year.
+- `property_group_id`: identifier of a probable matching property across portals.
 - `scraped_at`: local database insertion timestamp.
 
 The database file and logs are ignored by Git. The `.env` file is also ignored and must not be committed.
@@ -246,9 +249,24 @@ The database file and logs are ignored by Git. The `.env` file is also ignored a
 5. `src/listing-analyzer.ts` detects building type, garage, elevator, balcony, and construction year.
 6. `src/index.ts` applies district, price, area, and excluded-district filters.
 7. `src/database.ts` inserts new URLs into SQLite.
-8. Listings older than 30 days, based on `scraped_at`, are removed.
+8. A new listing is compared with listings from other sources and may be assigned to a property group.
+9. Listings older than 30 days, based on `scraped_at`, are removed.
 
 The analyzer uses rules and Polish keywords, not an AI model yet. A value of `null` means that the listing does not provide enough information. It does not mean that the feature is absent. This is important for decisions such as requiring an elevator.
+
+## Cross-portal duplicate detection
+
+Listings are never deleted when a probable duplicate is found. OLX and Otodom listings remain separate rows, so their different prices, titles, and URLs are preserved. The matcher only considers listings from different sources and assigns a group when the score is at least 75/100.
+
+The score uses:
+
+- matching district,
+- area difference of at most 1.5 square meters,
+- matching room count,
+- matching construction year,
+- overlapping meaningful words in the title and description.
+
+Known, different districts immediately prevent a match. A group is a probable match, not a legal or factual guarantee; verify the address and photos before making a decision.
 
 ## Adding another website
 

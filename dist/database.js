@@ -13,6 +13,7 @@ class FlatsDatabase {
         this.init();
     }
     init() {
+        this.db.exec('CREATE TABLE IF NOT EXISTS property_groups (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
         this.db.exec(`
             CREATE TABLE IF NOT EXISTS flats (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,6 +23,7 @@ class FlatsDatabase {
                 description TEXT,
                 price INTEGER,
                 area REAL,
+                rooms INTEGER,
                 price_per_m2 REAL,
                 district TEXT,
                 created_at TEXT,
@@ -30,6 +32,7 @@ class FlatsDatabase {
                 has_elevator INTEGER,
                 has_balcony INTEGER,
                 build_year INTEGER,
+                property_group_id INTEGER,
                 scraped_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         `);
@@ -45,11 +48,13 @@ class FlatsDatabase {
         const missingColumns = [
             ['source', "TEXT NOT NULL DEFAULT 'unknown'"],
             ['description', 'TEXT'],
+            ['rooms', 'INTEGER'],
             ['building_type', 'TEXT'],
             ['has_garage', 'INTEGER'],
             ['has_elevator', 'INTEGER'],
             ['has_balcony', 'INTEGER'],
-            ['build_year', 'INTEGER']
+            ['build_year', 'INTEGER'],
+            ['property_group_id', 'INTEGER']
         ];
         for (const [name, definition] of missingColumns) {
             if (!existingColumns.has(name)) {
@@ -82,11 +87,40 @@ class FlatsDatabase {
     insertFlat(flat) {
         const result = this.db.prepare(`
             INSERT OR IGNORE INTO flats (
-                source, url, title, description, price, area, price_per_m2, district, created_at,
+                source, url, title, description, price, area, rooms, price_per_m2, district, created_at,
                 building_type, has_garage, has_elevator, has_balcony, build_year
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(flat.source, flat.url, flat.title, flat.description, flat.price, flat.area, flat.pricePerM2, flat.district, flat.createdAt, flat.buildingType, toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasElevator), toSqlBoolean(flat.hasBalcony), flat.buildYear);
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(flat.source, flat.url, flat.title, flat.description, flat.price, flat.area, flat.rooms, flat.pricePerM2, flat.district, flat.createdAt, flat.buildingType, toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasElevator), toSqlBoolean(flat.hasBalcony), flat.buildYear);
         return result.changes > 0;
+    }
+    getAllFlats() {
+        return this.db.prepare('SELECT * FROM flats').all().map(row => this.mapStoredFlat(row));
+    }
+    assignPropertyGroup(flatId, groupId) {
+        this.db.prepare('UPDATE flats SET property_group_id = ? WHERE id = ?').run(groupId, flatId);
+    }
+    createPropertyGroup() {
+        const result = this.db.prepare('INSERT INTO property_groups DEFAULT VALUES').run();
+        return Number(result.lastInsertRowid);
+    }
+    getFlatByUrl(url) {
+        const row = this.db.prepare('SELECT * FROM flats WHERE url = ?').get(url);
+        return row ? this.mapStoredFlat(row) : null;
+    }
+    getPropertyGroupId(flatId) {
+        const row = this.db.prepare('SELECT property_group_id FROM flats WHERE id = ?').get(flatId);
+        return row?.property_group_id ?? null;
+    }
+    mapStoredFlat(row) {
+        return {
+            id: Number(row.id), source: String(row.source), url: String(row.url), title: String(row.title),
+            description: row.description ?? null, price: row.price ?? null,
+            area: row.area ?? null, rooms: row.rooms ?? null,
+            pricePerM2: row.price_per_m2 ?? null, district: row.district ?? null,
+            createdAt: row.created_at ?? null, buildingType: row.building_type ?? null,
+            hasGarage: fromSqlBoolean(row.has_garage), hasElevator: fromSqlBoolean(row.has_elevator),
+            hasBalcony: fromSqlBoolean(row.has_balcony), buildYear: row.build_year ?? null
+        };
     }
     getAllUrls() {
         const rows = this.db.prepare('SELECT url FROM flats').all();
@@ -105,6 +139,7 @@ class FlatsDatabase {
         this.db.close();
     }
 }
+// Groups are deliberately separate from listings, so different portal prices remain visible.
 function normalizeUrl(value) {
     const url = new URL(value);
     url.search = '';
@@ -113,5 +148,8 @@ function normalizeUrl(value) {
 }
 function toSqlBoolean(value) {
     return value === null ? null : value ? 1 : 0;
+}
+function fromSqlBoolean(value) {
+    return value === null ? null : value === 1;
 }
 exports.default = FlatsDatabase;
