@@ -4,6 +4,7 @@ import FlatsDatabase from './database';
 import ListingAnalyzer from './listing-analyzer';
 import PropertyMatcher from './property-matcher';
 import type { Flat, ListingSource } from './types';
+import TelegramNotifier from './telegram-notifier';
 
 async function main(): Promise<void> {
     console.log('OLX Scraper - Start');
@@ -14,20 +15,28 @@ async function main(): Promise<void> {
 
     const maxPages = parseInt(process.env.MAX_PAGES || '3', 10);
     const maxAgeDays = parseNonNegativeInt(process.env.MAX_AGE_DAYS, 7);
+    const requireElevator = process.env.REQUIRE_ELEVATOR !== 'false';
+    const requireGarage = process.env.REQUIRE_GARAGE === 'true';
+    const requireBalcony = process.env.REQUIRE_BALCONY === 'true';
     const allowedDistricts = parseList(process.env.ALLOWED_DISTRICTS);
-    const excludedDistricts = parseList(process.env.EXCLUDED_DISTRICTS || 'Ursus,Białołęka');
+    const excludedDistricts = parseList(process.env.EXCLUDED_DISTRICTS || 'Ursus,Białołęka,Wawer');
+    const excludedBuildingTypes = parseList(process.env.EXCLUDED_BUILDING_TYPES || 'wielka plyta');
     const minPrice = parseInt(process.env.MIN_PRICE || '0', 10);
     const maxPrice = parseInt(process.env.MAX_PRICE || String(Number.MAX_SAFE_INTEGER), 10);
     const minArea = parseInt(process.env.MIN_AREA || '0', 10);
     const source: ListingSource = new OlxScraper();
     const analyzer = new ListingAnalyzer();
     const matcher = new PropertyMatcher();
+    const notifier = createNotifier();
     const db = new FlatsDatabase();
 
     try {
         console.log(`URL: ${targetUrl}`);
         console.log(`Max stron: ${maxPages}`);
         console.log(`Maksymalny wiek ofert: ${maxAgeDays} dni`);
+        console.log(`Winda wymagana: ${requireElevator ? 'tak' : 'nie'}`);
+        console.log(`Garaz wymagany: ${requireGarage ? 'tak' : 'nie'}`);
+        console.log(`Balkon wymagany: ${requireBalcony ? 'tak' : 'nie'}`);
         console.log(`Dozwolone dzielnice: ${allowedDistricts.join(', ')}`);
         console.log(`Cena: ${minPrice} - ${maxPrice} zl`);
         console.log(`Min metraz: ${minArea} m2`);
@@ -41,7 +50,12 @@ async function main(): Promise<void> {
 
         for (const flat of flats) {
             const analyzedFlat = analyzer.analyze(flat);
-            if (excludedDistricts.includes(analyzedFlat.district || '')) {
+            db.updateFlat(analyzedFlat);
+            if (excludedDistricts.some(district => sameDistrict(district, analyzedFlat.district))) {
+                filteredCount++;
+                continue;
+            }
+            if (excludedBuildingTypes.some(type => sameNormalizedValue(type, analyzedFlat.buildingType))) {
                 filteredCount++;
                 continue;
             }
@@ -54,6 +68,18 @@ async function main(): Promise<void> {
                 continue;
             }
             if (analyzedFlat.area !== null && analyzedFlat.area < minArea) {
+                filteredCount++;
+                continue;
+            }
+            if (requireElevator && analyzedFlat.hasElevator !== true) {
+                filteredCount++;
+                continue;
+            }
+            if (requireGarage && analyzedFlat.hasGarage !== true) {
+                filteredCount++;
+                continue;
+            }
+            if (requireBalcony && analyzedFlat.hasBalcony !== true) {
                 filteredCount++;
                 continue;
             }
@@ -72,6 +98,7 @@ async function main(): Promise<void> {
                 }
                 newCount++;
                 printFlat(analyzedFlat);
+                await notify(notifier, analyzedFlat);
             }
         }
 
@@ -89,8 +116,38 @@ async function main(): Promise<void> {
     }
 }
 
+function createNotifier(): TelegramNotifier | null {
+    const token = process.env.TELEGRAM_TOKEN;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
+    return token && chatId ? new TelegramNotifier(token, chatId) : null;
+}
+
+async function notify(notifier: TelegramNotifier | null, flat: Flat): Promise<void> {
+    if (!notifier) return;
+
+    try {
+        await notifier.sendNewListing(flat);
+        console.log('Powiadomienie Telegram wyslane.');
+    } catch (error) {
+        console.error('Nie udalo sie wyslac powiadomienia Telegram:', getErrorMessage(error));
+    }
+}
+
 function parseList(value: string | undefined): string[] {
     return (value || '').split(',').map(item => item.trim()).filter(Boolean);
+}
+
+function sameDistrict(left: string, right: string | null): boolean {
+    if (!right) return false;
+    return sameNormalizedValue(left, right);
+}
+
+function sameNormalizedValue(left: string, right: string | null): boolean {
+    return right !== null && normalizeValue(left) === normalizeValue(right);
+}
+
+function normalizeValue(value: string): string {
+    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('pl-PL');
 }
 
 function parseNonNegativeInt(value: string | undefined, fallback: number): number {

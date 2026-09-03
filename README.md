@@ -15,6 +15,7 @@ The scraper uses a source adapter abstraction. Application code depends on the `
 - Avoids inserting the same URL more than once.
 - Groups probable cross-portal duplicates into one property group while keeping each listing separate.
 - Runs manually or on a schedule three times per day.
+- Optionally sends newly saved listings to Telegram.
 - Uses TypeScript with strict type checking.
 - Keeps the browser headless by default.
 
@@ -64,7 +65,8 @@ TARGET_URL=https://www.olx.pl/nieruchomosci/mieszkania/sprzedaz/warszawa/
 
 # Optional application-level filters
 ALLOWED_DISTRICTS=Bemowo,Ochota,Targówek,Bielany,Mokotów
-EXCLUDED_DISTRICTS=Ursus,Białołęka
+EXCLUDED_DISTRICTS=Ursus,Białołęka,Wawer
+EXCLUDED_BUILDING_TYPES=wielka plyta
 MIN_PRICE=700000
 MAX_PRICE=1200000
 MIN_AREA=55
@@ -74,8 +76,11 @@ HEADLESS=true
 MAX_PAGES=3
 REQUEST_DELAY=2000
 MAX_AGE_DAYS=7
+REQUIRE_ELEVATOR=true
+REQUIRE_GARAGE=false
+REQUIRE_BALCONY=false
 
-# Reserved for future Telegram notifications
+# Optional Telegram notifications for new listings
 TELEGRAM_TOKEN=
 TELEGRAM_CHAT_ID=
 ```
@@ -86,7 +91,8 @@ TELEGRAM_CHAT_ID=
 |---|---:|---|---:|
 | `TARGET_URL` | Yes | OLX search results URL | none |
 | `ALLOWED_DISTRICTS` | No | Comma-separated list of accepted districts | all |
-| `EXCLUDED_DISTRICTS` | No | Comma-separated list of rejected districts | `Ursus,Białołęka` |
+| `EXCLUDED_DISTRICTS` | No | Comma-separated list of rejected districts | `Ursus,Białołęka,Wawer` |
+| `EXCLUDED_BUILDING_TYPES` | No | Comma-separated list of rejected building types | `wielka plyta` |
 | `MIN_PRICE` | No | Minimum price in PLN | `0` |
 | `MAX_PRICE` | No | Maximum price in PLN | no practical limit |
 | `MIN_AREA` | No | Minimum area in square meters | `0` |
@@ -94,8 +100,11 @@ TELEGRAM_CHAT_ID=
 | `MAX_PAGES` | No | Number of result pages to visit | `3` |
 | `REQUEST_DELAY` | No | Base delay between pages in milliseconds | `2000` |
 | `MAX_AGE_DAYS` | No | Maximum age of a listing, measured from the OLX displayed date | `7` |
-| `TELEGRAM_TOKEN` | No | Reserved for notifications | empty |
-| `TELEGRAM_CHAT_ID` | No | Reserved for notifications | empty |
+| `REQUIRE_ELEVATOR` | No | Keep only listings where an elevator is explicitly detected | `true` |
+| `REQUIRE_GARAGE` | No | Keep only listings where a garage or parking place is explicitly detected | `false` |
+| `REQUIRE_BALCONY` | No | Keep only listings where a balcony, loggia, or terrace is explicitly detected | `false` |
+| `TELEGRAM_TOKEN` | No | Bot token from BotFather | empty |
+| `TELEGRAM_CHAT_ID` | No | Target chat or user ID | empty |
 
 `TARGET_URL` should be a URL for the search and sorting options you want. The scraper adds `page=2`, `page=3`, and so on for subsequent pages.
 
@@ -132,6 +141,18 @@ npm start
 ```
 
 This command loads `.env`, scrapes the configured pages, applies filters, and writes accepted listings to `data/flats.db`.
+
+### Telegram notifications
+
+To receive new listings in Telegram:
+
+1. Create a bot with `@BotFather` and copy its token to `TELEGRAM_TOKEN`.
+2. Open a conversation with the bot and send it at least one message.
+3. Find your chat ID using Telegram's `getUpdates` endpoint or a trusted bot that displays chat IDs.
+4. Set `TELEGRAM_CHAT_ID` in `.env`.
+5. Run the scraper normally with `npm start` or `npm run scheduler`.
+
+Only listings that are newly inserted into the database trigger a notification. Telegram errors are logged and do not stop the scraper.
 
 ### Run the scheduler
 
@@ -234,6 +255,7 @@ The database file and logs are ignored by Git. The `.env` file is also ignored a
 │   ├── parser.ts                # OLX listing parser
 │   ├── scheduler.ts             # 08:00, 14:00, 20:00 schedule
 │   ├── scraper.ts               # OLX ListingSource adapter
+│   ├── telegram-notifier.ts     # Telegram notification channel
 │   └── types.ts                 # Shared TypeScript types
 ├── .env.example                 # Configuration template
 ├── package.json                 # Dependencies and npm scripts

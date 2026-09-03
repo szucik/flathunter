@@ -105,6 +105,21 @@ class FlatsDatabase {
         return result.changes > 0;
     }
 
+    updateFlat(flat: Flat): void {
+        this.db.prepare(`
+            UPDATE flats SET
+                source = ?, title = ?, price = ?, area = ?, rooms = ?, price_per_m2 = ?,
+                district = ?, created_at = ?, building_type = COALESCE(?, building_type),
+                has_garage = COALESCE(?, has_garage), has_elevator = COALESCE(?, has_elevator),
+                has_balcony = COALESCE(?, has_balcony), build_year = COALESCE(?, build_year)
+            WHERE url = ?
+        `).run(
+            flat.source, flat.title, flat.price, flat.area, flat.rooms, flat.pricePerM2,
+            flat.district, flat.createdAt, flat.buildingType, toSqlBoolean(flat.hasGarage),
+            toSqlBoolean(flat.hasElevator), toSqlBoolean(flat.hasBalcony), flat.buildYear, flat.url
+        );
+    }
+
     getAllFlats(): StoredFlat[] {
         return this.db.prepare('SELECT * FROM flats').all().map(row => this.mapStoredFlat(row as Record<string, unknown>));
     }
@@ -136,7 +151,8 @@ class FlatsDatabase {
             pricePerM2: (row.price_per_m2 as number | null) ?? null, district: (row.district as string | null) ?? null,
             createdAt: (row.created_at as string | null) ?? null, buildingType: (row.building_type as string | null) ?? null,
             hasGarage: fromSqlBoolean(row.has_garage as number | null), hasElevator: fromSqlBoolean(row.has_elevator as number | null),
-            hasBalcony: fromSqlBoolean(row.has_balcony as number | null), buildYear: (row.build_year as number | null) ?? null
+            hasBalcony: fromSqlBoolean(row.has_balcony as number | null), buildYear: (row.build_year as number | null) ?? null,
+            propertyGroupId: (row.property_group_id as number | null) ?? null
         };
     }
 

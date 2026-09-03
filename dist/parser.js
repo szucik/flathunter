@@ -110,8 +110,8 @@ class Parser {
         };
     }
     parseRooms(text) {
-        const match = text.match(/(?:pokoje?|pok[óo]j|pomieszczenia)\s*[:\-]?\s*(\d)/i)
-            || text.match(/(\d)\s*(?:pokoje?|pok[óo]j)/i);
+        const match = text.match(/(\d{1,2})\s*(?:pokoje?|pok[óo]j)/i)
+            || text.match(/(?:pokoje?|pok[óo]j|pomieszczenia)\s*[:\-]\s*(\d{1,2})/i);
         return match ? Number(match[1]) : null;
     }
     parseLocation(locationText) {

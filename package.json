@@ -7,6 +7,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "scheduler": "node dist/scheduler.js",
+    "api": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "npm run typecheck && tsx --test tests/*.test.ts"
   },
