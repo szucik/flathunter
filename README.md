@@ -142,6 +142,26 @@ npm start
 
 This command loads `.env`, scrapes the configured pages, applies filters, and writes accepted listings to `data/flats.db`.
 
+## Local API
+
+Start the API and dashboard with:
+
+```bash
+npm run build
+npm run api
+```
+
+The dashboard is available at `http://localhost:3000`. The API exposes JSON that can be consumed by Vue, TypeScript, or any other client:
+
+```text
+GET /api/health
+GET /api/listings?limit=100
+GET /api/properties?limit=100
+GET /api/properties?district=Mokotów&source=olx
+```
+
+`/api/listings` returns individual portal listings. `/api/properties` returns the aggregated view: probable cross-portal duplicates are grouped together, while each original listing and its price remain available inside the group.
+
 ### Telegram notifications
 
 To receive new listings in Telegram:
@@ -163,11 +183,11 @@ npm run build
 npm run scheduler
 ```
 
-The scheduler runs the scraper every day at:
+The scheduler runs the scraper every eight hours, at:
 
+- 00:00
 - 08:00
-- 14:00
-- 20:00
+- 16:00
 
 The scheduler process must remain running. Press `Ctrl+C` to stop it. For reliable unattended operation, run it under `systemd`, Docker, or another process manager.
 
@@ -236,6 +256,8 @@ The `flats` table currently contains:
 - `has_garage`, `has_elevator`, `has_balcony`: detected boolean values.
 - `build_year`: detected construction year.
 - `property_group_id`: identifier of a probable matching property across portals.
+- `first_seen_at`: exact local timestamp when FlatHunter first stored the listing.
+- `last_seen_at`: exact local timestamp when FlatHunter last saw the listing.
 - `scraped_at`: local database insertion timestamp.
 
 The database file and logs are ignored by Git. The `.env` file is also ignored and must not be committed.
@@ -253,7 +275,7 @@ The database file and logs are ignored by Git. The `.env` file is also ignored a
 │   ├── database.ts              # SQLite persistence
 │   ├── index.ts                 # Application entrypoint and filtering
 │   ├── parser.ts                # OLX listing parser
-│   ├── scheduler.ts             # 08:00, 14:00, 20:00 schedule
+│   ├── scheduler.ts             # Every eight hours schedule
 │   ├── scraper.ts               # OLX ListingSource adapter
 │   ├── telegram-notifier.ts     # Telegram notification channel
 │   └── types.ts                 # Shared TypeScript types
@@ -344,7 +366,7 @@ Check the following:
 
 ### The scheduler appears to do nothing
 
-That is expected between scheduled times. It is a long-running process that waits for 08:00, 14:00, or 20:00. Start it with:
+That is expected between scheduled times. It is a long-running process that waits for the next eight-hour interval. Start it with:
 
 ```bash
 npm run build

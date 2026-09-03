@@ -8,6 +8,15 @@ export interface Flat {
     rooms: number | null;
     pricePerM2: number | null;
     district: string | null;
+    address: string | null;
+    floor: number | null;
+    totalFloors: number | null;
+    ownershipType: string | null;
+    rent: number | null;
+    commission: string | null;
+    listingStatus: string | null;
+    publishedAt: string | null;
+    refreshedAt: string | null;
     createdAt: string | null;
     buildingType: string | null;
     hasGarage: boolean | null;
@@ -19,6 +28,8 @@ export interface Flat {
 export interface StoredFlat extends Flat {
     id: number;
     propertyGroupId: number | null;
+    firstSeenAt: string;
+    lastSeenAt: string;
 }
 
 export interface PropertyMatch {

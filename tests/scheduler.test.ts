@@ -14,9 +14,9 @@ function fakeSchedule(expression: string, callback: Callback) {
     } as ReturnType<typeof cron.schedule>;
 }
 
-test('uses a valid schedule at 08:00, 14:00 and 20:00', () => {
+test('uses a valid schedule every eight hours', () => {
     assert.equal(cron.validate(SCHEDULE), true);
-    assert.equal(SCHEDULE, '0 8,14,20 * * *');
+    assert.equal(SCHEDULE, '0 */8 * * *');
 });
 
 test('runs a scheduled job and prevents overlapping executions', async () => {
