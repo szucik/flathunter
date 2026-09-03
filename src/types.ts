@@ -5,6 +5,7 @@ export interface Flat {
     description: string | null;
     price: number | null;
     area: number | null;
+    rooms: number | null;
     pricePerM2: number | null;
     district: string | null;
     createdAt: string | null;
@@ -13,6 +14,15 @@ export interface Flat {
     hasElevator: boolean | null;
     hasBalcony: boolean | null;
     buildYear: number | null;
+}
+
+export interface StoredFlat extends Flat {
+    id: number;
+}
+
+export interface PropertyMatch {
+    flat: StoredFlat;
+    score: number;
 }
 
 export interface ListingSource {
