@@ -18,11 +18,16 @@ export interface Flat {
 
 export interface StoredFlat extends Flat {
     id: number;
+    propertyGroupId: number | null;
 }
 
 export interface PropertyMatch {
     flat: StoredFlat;
     score: number;
+}
+
+export interface NotificationChannel {
+    sendNewListing(flat: Flat): Promise<void>;
 }
 
 export interface ListingSource {
