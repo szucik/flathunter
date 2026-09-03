@@ -1,7 +1,7 @@
 import cron, { type ScheduledTask } from 'node-cron';
 import main from './index';
 
-export const SCHEDULE = '0 8,14,20 * * *';
+export const SCHEDULE = '0 */8 * * *';
 
 type ScheduleFunction = (expression: string, callback: () => void) => ScheduledTask;
 

@@ -24,15 +24,26 @@ class FlatsDatabase {
                 price INTEGER,
                 area REAL,
                 rooms INTEGER,
+                address TEXT,
+                floor INTEGER,
+                total_floors INTEGER,
                 price_per_m2 REAL,
                 district TEXT,
                 created_at TEXT,
+                published_at TEXT,
+                refreshed_at TEXT,
                 building_type TEXT,
                 has_garage INTEGER,
                 has_elevator INTEGER,
                 has_balcony INTEGER,
                 build_year INTEGER,
+                ownership_type TEXT,
+                rent INTEGER,
+                commission TEXT,
+                listing_status TEXT,
                 property_group_id INTEGER,
+                first_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 scraped_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         `);
@@ -50,11 +61,22 @@ class FlatsDatabase {
             ['source', "TEXT NOT NULL DEFAULT 'unknown'"],
             ['description', 'TEXT'],
             ['rooms', 'INTEGER'],
+            ['address', 'TEXT'],
+            ['floor', 'INTEGER'],
+            ['total_floors', 'INTEGER'],
+            ['published_at', 'TEXT'],
+            ['refreshed_at', 'TEXT'],
             ['building_type', 'TEXT'],
             ['has_garage', 'INTEGER'],
             ['has_elevator', 'INTEGER'],
             ['has_balcony', 'INTEGER'],
-            ['build_year', 'INTEGER']
+            ['build_year', 'INTEGER'],
+            ['ownership_type', 'TEXT'],
+            ['rent', 'INTEGER'],
+            ['commission', 'TEXT'],
+            ['listing_status', 'TEXT'],
+            ['first_seen_at', 'DATETIME'],
+            ['last_seen_at', 'DATETIME']
             ,['property_group_id', 'INTEGER']
         ];
 
@@ -63,6 +85,8 @@ class FlatsDatabase {
                 this.db.exec(`ALTER TABLE flats ADD COLUMN ${name} ${definition}`);
             }
         }
+
+        this.db.exec('UPDATE flats SET first_seen_at = COALESCE(first_seen_at, scraped_at), last_seen_at = COALESCE(last_seen_at, scraped_at)');
     }
 
     private normalizeStoredUrls(): void {
@@ -92,14 +116,17 @@ class FlatsDatabase {
     insertFlat(flat: Flat): boolean {
         const result = this.db.prepare(`
             INSERT OR IGNORE INTO flats (
-                source, url, title, description, price, area, rooms, price_per_m2, district, created_at,
-                building_type, has_garage, has_elevator, has_balcony, build_year
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                source, url, title, description, price, area, rooms, address, floor, total_floors,
+                price_per_m2, district, created_at, published_at, refreshed_at, building_type,
+                has_garage, has_elevator, has_balcony, build_year, ownership_type, rent, commission, listing_status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
             flat.source, flat.url, flat.title, flat.description, flat.price, flat.area, flat.rooms,
-            flat.pricePerM2, flat.district, flat.createdAt, flat.buildingType,
+            flat.address, flat.floor, flat.totalFloors, flat.pricePerM2, flat.district, flat.createdAt,
+            flat.publishedAt, flat.refreshedAt, flat.buildingType,
             toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasElevator),
-            toSqlBoolean(flat.hasBalcony), flat.buildYear
+            toSqlBoolean(flat.hasBalcony), flat.buildYear, flat.ownershipType, flat.rent,
+            flat.commission, flat.listingStatus
         );
 
         return result.changes > 0;
@@ -108,15 +135,20 @@ class FlatsDatabase {
     updateFlat(flat: Flat): void {
         this.db.prepare(`
             UPDATE flats SET
-                source = ?, title = ?, price = ?, area = ?, rooms = ?, price_per_m2 = ?,
-                district = ?, created_at = ?, building_type = COALESCE(?, building_type),
+                source = ?, title = ?, price = ?, area = ?, rooms = ?, address = ?, floor = ?, total_floors = ?, price_per_m2 = ?,
+                district = ?, created_at = ?, published_at = ?, refreshed_at = ?, building_type = COALESCE(?, building_type),
                 has_garage = COALESCE(?, has_garage), has_elevator = COALESCE(?, has_elevator),
-                has_balcony = COALESCE(?, has_balcony), build_year = COALESCE(?, build_year)
+                has_balcony = COALESCE(?, has_balcony), build_year = COALESCE(?, build_year),
+                ownership_type = COALESCE(?, ownership_type), rent = COALESCE(?, rent),
+                commission = COALESCE(?, commission), listing_status = COALESCE(?, listing_status),
+                last_seen_at = CURRENT_TIMESTAMP
             WHERE url = ?
         `).run(
-            flat.source, flat.title, flat.price, flat.area, flat.rooms, flat.pricePerM2,
-            flat.district, flat.createdAt, flat.buildingType, toSqlBoolean(flat.hasGarage),
-            toSqlBoolean(flat.hasElevator), toSqlBoolean(flat.hasBalcony), flat.buildYear, flat.url
+            flat.source, flat.title, flat.price, flat.area, flat.rooms, flat.address, flat.floor,
+            flat.totalFloors, flat.pricePerM2, flat.district, flat.createdAt, flat.publishedAt,
+            flat.refreshedAt, flat.buildingType, toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasElevator),
+            toSqlBoolean(flat.hasBalcony), flat.buildYear, flat.ownershipType, flat.rent,
+            flat.commission, flat.listingStatus, flat.url
         );
     }
 
@@ -148,11 +180,20 @@ class FlatsDatabase {
             id: Number(row.id), source: String(row.source), url: String(row.url), title: String(row.title),
             description: (row.description as string | null) ?? null, price: (row.price as number | null) ?? null,
             area: (row.area as number | null) ?? null, rooms: (row.rooms as number | null) ?? null,
+            address: (row.address as string | null) ?? null, floor: (row.floor as number | null) ?? null,
+            totalFloors: (row.total_floors as number | null) ?? null,
             pricePerM2: (row.price_per_m2 as number | null) ?? null, district: (row.district as string | null) ?? null,
-            createdAt: (row.created_at as string | null) ?? null, buildingType: (row.building_type as string | null) ?? null,
+            createdAt: (row.created_at as string | null) ?? null,
+            publishedAt: (row.published_at as string | null) ?? null,
+            refreshedAt: (row.refreshed_at as string | null) ?? null,
+            buildingType: (row.building_type as string | null) ?? null,
             hasGarage: fromSqlBoolean(row.has_garage as number | null), hasElevator: fromSqlBoolean(row.has_elevator as number | null),
             hasBalcony: fromSqlBoolean(row.has_balcony as number | null), buildYear: (row.build_year as number | null) ?? null,
-            propertyGroupId: (row.property_group_id as number | null) ?? null
+            ownershipType: (row.ownership_type as string | null) ?? null, rent: (row.rent as number | null) ?? null,
+            commission: (row.commission as string | null) ?? null,
+            listingStatus: (row.listing_status as string | null) ?? null,
+            propertyGroupId: (row.property_group_id as number | null) ?? null,
+            firstSeenAt: String(row.first_seen_at), lastSeenAt: String(row.last_seen_at)
         };
     }
 

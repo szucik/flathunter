@@ -16,6 +16,11 @@ async function requestHandler(request: IncomingMessage, response: ServerResponse
             return;
         }
 
+        if (requestUrl.pathname === '/api/properties') {
+            await sendProperties(requestUrl, response);
+            return;
+        }
+
         if (requestUrl.pathname === '/api/health') {
             sendJson(response, 200, { ok: true });
             return;
@@ -45,6 +50,40 @@ async function sendListings(requestUrl: URL, response: ServerResponse): Promise<
             .slice(0, limit);
 
         sendJson(response, 200, { count: listings.length, listings });
+    } finally {
+        db.close();
+    }
+}
+
+async function sendProperties(requestUrl: URL, response: ServerResponse): Promise<void> {
+    const db = new FlatsDatabase();
+    try {
+        const district = requestUrl.searchParams.get('district');
+        const source = requestUrl.searchParams.get('source');
+        const limit = Math.min(Math.max(Number(requestUrl.searchParams.get('limit') || 100), 1), 500);
+        const listings = db.getAllFlats()
+            .filter(flat => !district || flat.district === district)
+            .filter(flat => !source || flat.source === source);
+        const groups = new Map<string, typeof listings>();
+
+        for (const listing of listings) {
+            const key = listing.propertyGroupId === null ? `listing:${listing.id}` : `group:${listing.propertyGroupId}`;
+            const group = groups.get(key) || [];
+            group.push(listing);
+            groups.set(key, group);
+        }
+
+        const properties = [...groups.values()]
+            .map(group => ({
+                id: group[0].propertyGroupId ?? group[0].id,
+                listings: group,
+                lowestPrice: Math.min(...group.map(listing => listing.price ?? Number.MAX_SAFE_INTEGER)),
+                sources: [...new Set(group.map(listing => listing.source))]
+            }))
+            .sort((left, right) => right.listings[0].lastSeenAt.localeCompare(left.listings[0].lastSeenAt))
+            .slice(0, limit);
+
+        sendJson(response, 200, { count: properties.length, properties });
     } finally {
         db.close();
     }
