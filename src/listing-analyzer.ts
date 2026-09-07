@@ -13,11 +13,15 @@ class ListingAnalyzer {
             rent: this.matchMoney(text, /(?:czynsz|opłata administracyjna|oplaty administracyjne)[^\d]{0,20}([\d\s]+)\s*zł/),
             commission: this.matchCommission(text) || flat.commission,
             listingStatus: this.matchStatus(text) || flat.listingStatus,
-            buildingType: this.matchBuildingType(text),
-            hasGarage: this.matchPresence(text, [/garaż/, /garaz/, /miejsce postojowe/, /parking/], [/bez garażu/, /brak garażu/, /bez miejsca postojowego/]),
-            hasElevator: this.matchPresence(text, [/winda/, /windą/], [/bez windy/, /brak windy/, /bez dźwigu/]),
-            hasBalcony: this.matchPresence(text, [/balkon/, /loggia/, /taras/], [/bez balkonu/, /brak balkonu/]),
-            buildYear: this.matchBuildYear(text)
+            buildingType: this.matchBuildingType(text, flat),
+            hasGarage: this.matchPresence(
+                text,
+                [/garaż/, /garaz/, /miejsce postojowe/, /miejsce parkingowe/, /parking podziemny/],
+                [/bez garażu/, /brak garażu/, /bez miejsca postojowego/, /ogólnodostępne miejsca parkingowe/, /publiczny parking/]
+            ) ?? flat.hasGarage,
+            hasElevator: this.matchPresence(text, [/winda/, /windą/], [/bez windy/, /brak windy/, /bez dźwigu/]) ?? flat.hasElevator,
+            hasBalcony: this.matchPresence(text, [/balkon/, /loggia/, /taras/], [/bez balkonu/, /brak balkonu/]) ?? flat.hasBalcony,
+            buildYear: this.matchBuildYear(text) ?? flat.buildYear
         };
     }
 
@@ -69,12 +73,37 @@ class ListingAnalyzer {
         return null;
     }
 
-    private matchBuildingType(text: string): string | null {
+    private matchBuildingType(text: string, flat: Flat): string | null {
         if (/wielka płyta|wielkiej płyty|wielkopłytow/.test(text)) return 'wielka plyta';
+        if (/concrete[_ -]?plate|w[- ]?70|owt[- ]?75|wuf[- ]?t|wwp|system szczeciński|system szczecinski/i.test(text)) return 'wielka plyta';
+        if (/rama\s*h\b/i.test(text)) return flat.buildingType;
+        if (this.isLikelyLargePanel(flat, text)) return 'wielka plyta';
         if (/cegła|ceglan|cegły/.test(text)) return 'cegla';
         if (/kamienica|kamienicy/.test(text)) return 'kamienica';
         if (/nowe budownictwo|nowy budynek|apartamentowiec/.test(text)) return 'nowe budownictwo';
-        return null;
+        return flat.buildingType;
+    }
+
+    private isLikelyLargePanel(flat: Flat, text: string): boolean {
+        if (/rama\s*h\b/i.test(text)) return false;
+        if (flat.hasGarage === true) return false;
+
+        let score = 0;
+        const oldConstruction = flat.buildYear !== null && flat.buildYear >= 1960 && flat.buildYear <= 1993;
+        const block = flat.buildingType !== null && /blok|block/i.test(flat.buildingType);
+        const typicalFloorCount = flat.totalFloors !== null && [4, 5, 10, 11].includes(flat.totalFloors);
+
+        if (oldConstruction) score += 25;
+        if (block) score += 10;
+        if (typicalFloorCount) score += 15;
+        if (!/garaż|garaz|miejsce postojowe|miejsce parkingowe/i.test(text)) score += 5;
+        if (/dwustronne|rozkładowe|rozkladowe/i.test(text)) score += 20;
+        if (/ocieplon(?:y|a|e)|nowa elewacja/i.test(text)) score += 20;
+        if (/wymienione? piony|wymiana pionów|wymiana pionow/i.test(text)) score += 15;
+        if (/zsyp|ślepa kuchnia|slep[aą] kuchnia|ciemna kuchnia/i.test(text)) score += 30;
+        if (/\bpłyta\b|\bplyta\b/i.test(text)) score += 40;
+
+        return score >= 50;
     }
 
     private matchBuildYear(text: string): number | null {

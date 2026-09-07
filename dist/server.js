@@ -42,10 +42,12 @@ async function sendListings(requestUrl, response) {
         const district = requestUrl.searchParams.get('district');
         const source = requestUrl.searchParams.get('source');
         const portal = requestUrl.searchParams.get('portal') || source;
+        const includeExcludedBuildingTypes = requestUrl.searchParams.get('includeExcludedBuildingTypes') === 'true';
         const page = parsePage(requestUrl.searchParams.get('page'));
         const pageSize = parsePageSize(requestUrl.searchParams.get('pageSize') || requestUrl.searchParams.get('limit'));
         const filteredListings = db.getAllFlats()
             .filter(flat => !isExcludedDistrict(flat.district))
+            .filter(flat => includeExcludedBuildingTypes || !isExcludedBuildingType(flat.buildingType))
             .filter(flat => !district || flat.district === district)
             .filter(flat => !portal || getPortalName(flat.url) === portal)
             .map(flat => ({ ...flat, description: cleanDescription(flat.description), portal: getPortalName(flat.url) }));
@@ -62,10 +64,12 @@ async function sendProperties(requestUrl, response) {
         const district = requestUrl.searchParams.get('district');
         const source = requestUrl.searchParams.get('source');
         const portal = requestUrl.searchParams.get('portal') || source;
+        const includeExcludedBuildingTypes = requestUrl.searchParams.get('includeExcludedBuildingTypes') === 'true';
         const page = parsePage(requestUrl.searchParams.get('page'));
         const pageSize = parsePageSize(requestUrl.searchParams.get('pageSize') || requestUrl.searchParams.get('limit'));
         const listings = db.getAllFlats()
             .filter(flat => !isExcludedDistrict(flat.district))
+            .filter(flat => includeExcludedBuildingTypes || !isExcludedBuildingType(flat.buildingType))
             .filter(flat => !district || flat.district === district)
             .filter(flat => !portal || getPortalName(flat.url) === portal)
             .map(flat => ({ ...flat, description: cleanDescription(flat.description), portal: getPortalName(flat.url) }));
@@ -112,6 +116,12 @@ function cleanDescription(value) {
 }
 function isExcludedDistrict(value) {
     const excluded = (process.env.EXCLUDED_DISTRICTS || 'Ursus,Białołęka,Wawer')
+        .split(',')
+        .map(item => normalizeValue(item));
+    return value !== null && excluded.includes(normalizeValue(value));
+}
+function isExcludedBuildingType(value) {
+    const excluded = (process.env.EXCLUDED_BUILDING_TYPES || 'wielka plyta')
         .split(',')
         .map(item => normalizeValue(item));
     return value !== null && excluded.includes(normalizeValue(value));

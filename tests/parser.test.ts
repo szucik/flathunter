@@ -43,3 +43,18 @@ test('parses Otodom detail fields', () => {
     assert.equal(flat.hasBalcony, true);
     assert.match(flat.description || '', /Kartaginy/);
 });
+
+test('detects explicit large-panel construction from Otodom details', () => {
+    const html = readFileSync('patterns/otodom-wielkapłyta.html', 'utf8');
+    const flat = parser.parseDetailPage(html);
+
+    assert.equal(flat.buildingType, 'wielka plyta');
+    assert.equal(flat.buildYear, 1985);
+});
+
+test('extracts description from an OLX detail page with a different layout', () => {
+    const html = readFileSync('patterns/olx-wp.html', 'utf8');
+    const description = parser.parseDescriptionPage(html);
+
+    assert.match(description || '', /dwustronne|mieszkanie/i);
+});

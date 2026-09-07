@@ -81,15 +81,23 @@ class Parser {
         });
         const detailText = $('[data-sentry-component="AdDetailsBase"]').text().toLocaleLowerCase('pl-PL');
         const floor = this.parseFloorValue(details.get('Piętro') || '');
+        const buildingMaterial = details.get('Materiał budynku') || '';
+        const buildingType = details.get('Rodzaj zabudowy') || null;
+        const embeddedMaterial = this.readEmbeddedAttribute(html, 'building_material');
+        const embeddedBuildYear = this.readEmbeddedNumber(html, 'build_year');
+        const embeddedTotalFloors = this.readEmbeddedNumber(html, 'building_floors_num');
         return {
             description: this.parseDescriptionPage(html),
             area: this.parseNumber(details.get('Powierzchnia') || ''),
             rooms: this.parseNumber(details.get('Liczba pokoi') || ''),
             floor: floor.floor,
-            totalFloors: floor.totalFloors,
+            totalFloors: this.parseNumber(details.get('Liczba pięter') || '') ?? floor.totalFloors ?? embeddedTotalFloors,
             rent: this.parseNumber(details.get('Czynsz') || ''),
             ownershipType: details.get('Forma własności') || null,
-            buildingType: details.get('Rodzaj zabudowy') || null,
+            buildYear: this.parseNumber(details.get('Rok budowy') || '') ?? embeddedBuildYear,
+            buildingType: /wielka płyta|wielkiej płyty|concrete_plate/i.test(`${buildingMaterial} ${embeddedMaterial}`)
+                ? 'wielka plyta'
+                : buildingType,
             hasElevator: this.parseBoolean(details.get('Winda')) ?? /winda\s*:?\s*tak/.test(detailText),
             hasGarage: /garaż|garaz|miejsce parkingowe/.test(detailText) ? true : null,
             hasBalcony: /balkon|loggia|taras/.test(detailText) ? true : null
@@ -171,6 +179,14 @@ class Parser {
         if (/^nie$/i.test(value.trim()))
             return false;
         return null;
+    }
+    readEmbeddedAttribute(html, name) {
+        const match = html.match(new RegExp(`"${name}"\\s*:\\s*"([^"]+)"`));
+        return match?.[1] || null;
+    }
+    readEmbeddedNumber(html, name) {
+        const value = this.readEmbeddedAttribute(html, name);
+        return value ? Number(value) : null;
     }
     parseLocation(locationText) {
         const [locationPart = '', datePart = ''] = locationText.split(' - ');
