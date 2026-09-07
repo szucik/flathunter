@@ -17,8 +17,13 @@ class ListingAnalyzer {
             hasGarage: this.matchPresence(
                 text,
                 [/garaż/, /garaz/, /miejsce postojowe/, /miejsce parkingowe/, /parking podziemny/],
-                [/bez garażu/, /brak garażu/, /bez miejsca postojowego/, /ogólnodostępne miejsca parkingowe/, /publiczny parking/]
+                [/bez garażu/, /brak garażu/, /bez miejsca postojowego/, /ogólnodostępne miejsca parkingowe/, /publiczny parking/,
+                    /garaż\s*\/\s*miejsce parkingowe/, /garaz\s*\/\s*miejsce parkingowe/,
+                    /garaż\s*(?:lub|albo)\s*miejsce parkingowe/, /garaz\s*(?:lub|albo)\s*miejsce parkingowe/]
             ) ?? flat.hasGarage,
+            hasParkingSpace: this.matchPresence(text, [/miejsce postojowe/, /miejsce parkingowe/, /parking podziemny/], [/brak miejsca postojowego/, /ogólnodostępne miejsca parkingowe/, /publiczny parking/]) ?? flat.hasParkingSpace,
+            hasStorageUnit: this.matchPresence(text, [/komórka lokatorska/, /komorka lokatorska/], []) ?? flat.hasStorageUnit,
+            hasBasement: this.matchPresence(text, [/piwnica/, /pomieszczenie piwniczne/], [/bez piwnicy/, /brak piwnicy/]) ?? flat.hasBasement,
             hasElevator: this.matchPresence(text, [/winda/, /windą/], [/bez windy/, /brak windy/, /bez dźwigu/]) ?? flat.hasElevator,
             hasBalcony: this.matchPresence(text, [/balkon/, /loggia/, /taras/], [/bez balkonu/, /brak balkonu/]) ?? flat.hasBalcony,
             buildYear: this.matchBuildYear(text) ?? flat.buildYear
@@ -74,9 +79,11 @@ class ListingAnalyzer {
     }
 
     private matchBuildingType(text: string, flat: Flat): string | null {
-        if (/wielka płyta|wielkiej płyty|wielkopłytow/.test(text)) return 'wielka plyta';
-        if (/concrete[_ -]?plate|w[- ]?70|owt[- ]?75|wuf[- ]?t|wwp|system szczeciński|system szczecinski/i.test(text)) return 'wielka plyta';
-        if (/rama\s*h\b/i.test(text)) return flat.buildingType;
+        const normalizedText = normalizeSearchText(text);
+        if (/\bwielka plyta\b|\bwielkiej plyty\b|\bwielkoplytow/.test(normalizedText)) return 'wielka plyta';
+        if (/concrete[_ -]?plate|w[- ]?70|owt[- ]?75|wuf[- ]?t|wwp|system szczecinski/.test(normalizedText)) return 'wielka plyta';
+        if (/rama\s*-?\s*h\b|z ramy\s*-?\s*h\b|zelbetowy szkielet/.test(normalizedText)) return 'rama h';
+        if (this.isLikelyRamaH(flat, text)) return 'rama h';
         if (this.isLikelyLargePanel(flat, text)) return 'wielka plyta';
         if (/cegła|ceglan|cegły/.test(text)) return 'cegla';
         if (/kamienica|kamienicy/.test(text)) return 'kamienica';
@@ -85,19 +92,27 @@ class ListingAnalyzer {
     }
 
     private isLikelyLargePanel(flat: Flat, text: string): boolean {
-        if (/rama\s*h\b/i.test(text)) return false;
+        const normalizedText = normalizeSearchText(text);
+        if (/rama\s*-?\s*h\b|z ramy\s*-?\s*h\b/.test(normalizedText)) return false;
         if (flat.hasGarage === true) return false;
 
         let score = 0;
         const oldConstruction = flat.buildYear !== null && flat.buildYear >= 1960 && flat.buildYear <= 1993;
         const block = flat.buildingType !== null && /blok|block/i.test(flat.buildingType);
-        const typicalFloorCount = flat.totalFloors !== null && [4, 5, 10, 11].includes(flat.totalFloors);
+        const typicalFloorCount = flat.totalFloors !== null
+            && ([4, 5, 10, 11].includes(flat.totalFloors) || flat.totalFloors >= 10);
 
-        if (oldConstruction) score += 25;
+        if (oldConstruction) score += 30;
         if (block) score += 10;
         if (typicalFloorCount) score += 15;
+        if (flat.hasElevator === true) score += 10;
+        if (flat.totalFloors !== null && flat.totalFloors > 4 && flat.hasElevator === false) score -= 25;
+        if (flat.totalFloors !== null && flat.totalFloors >= 10 && /żelbeton|zelbeton|żelbetowy|zelbetowy/i.test(text)) score += 25;
+        if (/wtórny|wtorny/i.test(flat.marketType || '') || /rynek wtórny|rynek wtorny/i.test(text)) score += 10;
+        if (flat.rent !== null && flat.rent > 0 && flat.rent < 1000) score += 5;
         if (!/garaż|garaz|miejsce postojowe|miejsce parkingowe/i.test(text)) score += 5;
-        if (/dwustronne|rozkładowe|rozkladowe/i.test(text)) score += 20;
+        if (/\bpiwnic(?:a|y|ę)\b/i.test(text)) score += 5;
+        if (/dwustronne|rozkladowe/.test(normalizedText)) score += 20;
         if (/ocieplon(?:y|a|e)|nowa elewacja/i.test(text)) score += 20;
         if (/wymienione? piony|wymiana pionów|wymiana pionow/i.test(text)) score += 15;
         if (/zsyp|ślepa kuchnia|slep[aą] kuchnia|ciemna kuchnia/i.test(text)) score += 30;
@@ -106,11 +121,40 @@ class ListingAnalyzer {
         return score >= 50;
     }
 
+    private isLikelyRamaH(flat: Flat, text: string): boolean {
+        const normalizedText = normalizeSearchText(text);
+        if (/wielka plyta|wielkiej plyty|wielkoplytow|concrete[_ -]?plate|w[- ]?70|owt[- ]?75|wuf[- ]?t|wwp/.test(normalizedText)) {
+            return false;
+        }
+        if (/rama\s*-?\s*h\b|z ramy\s*-?\s*h\b|zelbetowy szkielet/.test(normalizedText)) return true;
+
+        const oldConstruction = flat.buildYear !== null && flat.buildYear >= 1970 && flat.buildYear <= 1995;
+        const block = flat.buildingType !== null && /blok|block/i.test(flat.buildingType);
+        const structuralSignal = /konstrukcja szkieletowa|szkielet żelbetowy|szkielet zelbetowy|ściany działowe|sciany dzialowe|możliwość wyburzenia ścian|mozliwosc wyburzenia scian|wszystkie ściany działowe|wszystkie sciany dzialowe/i.test(text);
+        const infillMaterial = /\bcegł[ayę]|\bpustak\b/i.test(text);
+        const hasGarage = flat.hasGarage === true || /garaż podziemny|garaz podziemny|miejsce postojowe/i.test(text);
+
+        let score = 0;
+        if (oldConstruction) score += 25;
+        if (block) score += 10;
+        if (structuralSignal) score += 45;
+        if (infillMaterial) score += 20;
+        if (/możliwość wyburzenia ścian|mozliwosc wyburzenia scian|wszystkie ściany działowe|wszystkie sciany dzialowe/i.test(text)) score += 20;
+        if (hasGarage) score += 5;
+        if (/ściany nośne między pokojami|sciany nosne miedzy pokojami/i.test(text)) score -= 50;
+
+        return score >= 60;
+    }
+
     private matchBuildYear(text: string): number | null {
         const matches = [...text.matchAll(/(?:rok budowy|wybudowan[eya]|oddany do użytku|oddane do użytku)[^\d]{0,20}(19\d{2}|20\d{2})/g)];
         const year = matches.at(0)?.[1];
         return year ? Number(year) : null;
     }
+}
+
+function normalizeSearchText(value: string): string {
+    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pl-PL');
 }
 
 export default ListingAnalyzer;

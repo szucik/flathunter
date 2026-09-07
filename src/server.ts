@@ -26,6 +26,17 @@ async function requestHandler(request: IncomingMessage, response: ServerResponse
             return;
         }
 
+        const manualTypeMatch = requestUrl.pathname.match(/^\/api\/listings\/(\d+)\/building-type$/);
+        if (manualTypeMatch && request.method === 'POST') {
+            await updateManualBuildingType(Number(manualTypeMatch[1]), request, response);
+            return;
+        }
+        const hiddenMatch = requestUrl.pathname.match(/^\/api\/listings\/(\d+)\/hidden$/);
+        if (hiddenMatch && request.method === 'POST') {
+            await updateHidden(Number(hiddenMatch[1]), request, response);
+            return;
+        }
+
         if (requestUrl.pathname === '/' || requestUrl.pathname === '/index.html') {
             await sendFile(response, 'index.html', 'text/html; charset=utf-8');
             return;
@@ -38,6 +49,49 @@ async function requestHandler(request: IncomingMessage, response: ServerResponse
     }
 }
 
+async function updateManualBuildingType(id: number, request: IncomingMessage, response: ServerResponse): Promise<void> {
+    const body = await readRequestBody(request);
+    const payload = JSON.parse(body) as { buildingType?: unknown };
+    const buildingType = payload.buildingType === null ? null : String(payload.buildingType || '');
+    if (buildingType !== null && !['wielka plyta', 'rama h', 'kamienica'].includes(buildingType)) {
+        sendJson(response, 400, { error: 'Unsupported building type' });
+        return;
+    }
+
+    const db = new FlatsDatabase();
+    try {
+        db.setManualBuildingType(id, buildingType);
+        sendJson(response, 200, { ok: true, id, buildingType });
+    } finally {
+        db.close();
+    }
+}
+
+async function updateHidden(id: number, request: IncomingMessage, response: ServerResponse): Promise<void> {
+    const payload = JSON.parse(await readRequestBody(request)) as { hidden?: unknown };
+    if (typeof payload.hidden !== 'boolean') {
+        sendJson(response, 400, { error: 'hidden must be boolean' });
+        return;
+    }
+    const db = new FlatsDatabase();
+    try {
+        db.setHidden(id, payload.hidden);
+        sendJson(response, 200, { ok: true, id, hidden: payload.hidden });
+    } finally {
+        db.close();
+    }
+}
+
+function readRequestBody(request: IncomingMessage): Promise<string> {
+    return new Promise((resolve, reject) => {
+        let body = '';
+        request.setEncoding('utf8');
+        request.on('data', chunk => body += chunk);
+        request.on('end', () => resolve(body));
+        request.on('error', reject);
+    });
+}
+
 async function sendListings(requestUrl: URL, response: ServerResponse): Promise<void> {
     const db = new FlatsDatabase();
     try {
@@ -45,11 +99,16 @@ async function sendListings(requestUrl: URL, response: ServerResponse): Promise<
         const source = requestUrl.searchParams.get('source');
         const portal = requestUrl.searchParams.get('portal') || source;
         const includeExcludedBuildingTypes = requestUrl.searchParams.get('includeExcludedBuildingTypes') === 'true';
+        const reviewBuildingType = requestUrl.searchParams.get('reviewBuildingType');
+        const showHidden = requestUrl.searchParams.get('showHidden') === 'true';
         const page = parsePage(requestUrl.searchParams.get('page'));
         const pageSize = parsePageSize(requestUrl.searchParams.get('pageSize') || requestUrl.searchParams.get('limit'));
         const filteredListings = db.getAllFlats()
+            .filter(flat => Boolean(flat.hidden) === showHidden)
             .filter(flat => !isExcludedDistrict(flat.district))
-            .filter(flat => includeExcludedBuildingTypes || !isExcludedBuildingType(flat.buildingType))
+            .filter(flat => reviewBuildingType
+                ? normalizeValue(flat.buildingType || '') === normalizeValue(reviewBuildingType)
+                : includeExcludedBuildingTypes || !isExcludedBuildingType(flat.buildingType))
             .filter(flat => !district || flat.district === district)
             .filter(flat => !portal || getPortalName(flat.url) === portal)
             .map(flat => ({ ...flat, description: cleanDescription(flat.description), portal: getPortalName(flat.url) }));
@@ -68,11 +127,16 @@ async function sendProperties(requestUrl: URL, response: ServerResponse): Promis
         const source = requestUrl.searchParams.get('source');
         const portal = requestUrl.searchParams.get('portal') || source;
         const includeExcludedBuildingTypes = requestUrl.searchParams.get('includeExcludedBuildingTypes') === 'true';
+        const reviewBuildingType = requestUrl.searchParams.get('reviewBuildingType');
+        const showHidden = requestUrl.searchParams.get('showHidden') === 'true';
         const page = parsePage(requestUrl.searchParams.get('page'));
         const pageSize = parsePageSize(requestUrl.searchParams.get('pageSize') || requestUrl.searchParams.get('limit'));
         const listings = db.getAllFlats()
+            .filter(flat => Boolean(flat.hidden) === showHidden)
             .filter(flat => !isExcludedDistrict(flat.district))
-            .filter(flat => includeExcludedBuildingTypes || !isExcludedBuildingType(flat.buildingType))
+            .filter(flat => reviewBuildingType
+                ? normalizeValue(flat.buildingType || '') === normalizeValue(reviewBuildingType)
+                : includeExcludedBuildingTypes || !isExcludedBuildingType(flat.buildingType))
             .filter(flat => !district || flat.district === district)
             .filter(flat => !portal || getPortalName(flat.url) === portal)
             .map(flat => ({ ...flat, description: cleanDescription(flat.description), portal: getPortalName(flat.url) }));

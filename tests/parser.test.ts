@@ -39,7 +39,7 @@ test('parses Otodom detail fields', () => {
     assert.equal(flat.rooms, 4);
     assert.equal(flat.rent, 600);
     assert.equal(flat.hasElevator, true);
-    assert.equal(flat.hasGarage, true);
+    assert.equal(flat.hasGarage, false);
     assert.equal(flat.hasBalcony, true);
     assert.match(flat.description || '', /Kartaginy/);
 });
@@ -57,4 +57,18 @@ test('extracts description from an OLX detail page with a different layout', () 
     const description = parser.parseDescriptionPage(html);
 
     assert.match(description || '', /dwustronne|mieszkanie/i);
+});
+
+test('does not infer a private garage from an ambiguous parking label', () => {
+    const flat = parser.parseDetailPage('<div data-sentry-component="AdDetailsBase">garaż/miejsce parkingowe</div>');
+
+    assert.equal(flat.hasGarage, false);
+});
+
+test('keeps missing feature data unknown instead of false', () => {
+    const flat = parser.parseDetailPage('<div>Opis ogłoszenia bez parametrów</div>');
+
+    assert.equal(flat.hasElevator, null);
+    assert.equal(flat.hasBalcony, null);
+    assert.equal(flat.hasGarage, null);
 });

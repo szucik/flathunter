@@ -18,8 +18,8 @@ async function main() {
     const maxPages = parseInt(process.env.MAX_PAGES || '3', 10);
     const maxAgeDays = parseNonNegativeInt(process.env.MAX_AGE_DAYS, 7);
     const requireElevator = process.env.REQUIRE_ELEVATOR !== 'false';
-    const requireGarage = process.env.REQUIRE_GARAGE === 'true';
-    const requireBalcony = process.env.REQUIRE_BALCONY === 'true';
+    const requireGarage = process.env.REQUIRE_GARAGE !== 'false';
+    const requireBalcony = process.env.REQUIRE_BALCONY !== 'false';
     const allowedDistricts = parseList(process.env.ALLOWED_DISTRICTS);
     const excludedDistricts = parseList(process.env.EXCLUDED_DISTRICTS || 'Ursus,Białołęka,Wawer');
     const excludedBuildingTypes = parseList(process.env.EXCLUDED_BUILDING_TYPES || 'wielka plyta');
@@ -50,6 +50,7 @@ async function main() {
         for (const flat of flats) {
             const analyzedFlat = analyzer.analyze(flat);
             db.updateFlat(analyzedFlat);
+            const inserted = db.insertFlat(analyzedFlat);
             if (excludedDistricts.some(district => sameDistrict(district, analyzedFlat.district))) {
                 filteredCount++;
                 continue;
@@ -74,7 +75,7 @@ async function main() {
                 filteredCount++;
                 continue;
             }
-            if (requireGarage && analyzedFlat.hasGarage !== true) {
+            if (requireGarage && !hasRequiredParking(analyzedFlat)) {
                 filteredCount++;
                 continue;
             }
@@ -82,7 +83,7 @@ async function main() {
                 filteredCount++;
                 continue;
             }
-            if (db.insertFlat(analyzedFlat)) {
+            if (inserted) {
                 const savedFlat = db.getFlatByUrl(analyzedFlat.url);
                 if (savedFlat) {
                     const match = matcher.findBestMatch(analyzedFlat, storedFlats);
@@ -161,4 +162,11 @@ if (require.main === module) {
     main().catch(() => {
         process.exitCode = 1;
     });
+}
+function hasRequiredParking(flat) {
+    if (flat.hasGarage === true)
+        return true;
+    const currentYear = new Date().getFullYear();
+    const modernBuilding = flat.buildYear !== null && flat.buildYear >= currentYear - 20;
+    return modernBuilding && flat.hasParkingSpace === true;
 }
