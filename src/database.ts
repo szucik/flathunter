@@ -40,6 +40,7 @@ class FlatsDatabase {
                 has_basement INTEGER,
                 has_elevator INTEGER,
                 has_balcony INTEGER,
+                has_garden INTEGER,
                 build_year INTEGER,
                 ownership_type TEXT,
                 market_type TEXT,
@@ -81,6 +82,7 @@ class FlatsDatabase {
             ['has_basement', 'INTEGER'],
             ['has_elevator', 'INTEGER'],
             ['has_balcony', 'INTEGER'],
+            ['has_garden', 'INTEGER'],
             ['build_year', 'INTEGER'],
             ['ownership_type', 'TEXT'],
             ['market_type', 'TEXT'],
@@ -132,15 +134,15 @@ class FlatsDatabase {
             INSERT OR IGNORE INTO flats (
                 source, url, image_url, title, description, price, area, rooms, address, floor, total_floors,
                 price_per_m2, district, created_at, published_at, refreshed_at, building_type,
-                has_garage, has_parking_space, has_storage_unit, has_basement, has_elevator, has_balcony, build_year, ownership_type, market_type, rent, commission, listing_status
-            ) VALUES (${Array.from({ length: 29 }, () => '?').join(', ')})
+                has_garage, has_parking_space, has_storage_unit, has_basement, has_elevator, has_balcony, has_garden, build_year, ownership_type, market_type, rent, commission, listing_status
+            ) VALUES (${Array.from({ length: 30 }, () => '?').join(', ')})
         `).run(
             flat.source, flat.url, flat.imageUrl, flat.title, flat.description, flat.price, flat.area, flat.rooms,
             flat.address, flat.floor, flat.totalFloors, flat.pricePerM2, flat.district, flat.createdAt,
             flat.publishedAt, flat.refreshedAt, flat.buildingType,
             toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasParkingSpace ?? null), toSqlBoolean(flat.hasStorageUnit ?? null),
             toSqlBoolean(flat.hasBasement ?? null), toSqlBoolean(flat.hasElevator),
-            toSqlBoolean(flat.hasBalcony), flat.buildYear, flat.ownershipType, flat.marketType ?? null, flat.rent,
+            toSqlBoolean(flat.hasBalcony), toSqlBoolean(flat.hasGarden), flat.buildYear, flat.ownershipType, flat.marketType ?? null, flat.rent,
             flat.commission, flat.listingStatus
         );
 
@@ -156,7 +158,8 @@ class FlatsDatabase {
                 has_garage = COALESCE(?, has_garage), has_elevator = COALESCE(?, has_elevator),
                 has_parking_space = COALESCE(?, has_parking_space), has_storage_unit = COALESCE(?, has_storage_unit),
                 has_basement = COALESCE(?, has_basement),
-                has_balcony = COALESCE(?, has_balcony), build_year = COALESCE(?, build_year),
+                has_balcony = COALESCE(?, has_balcony), has_garden = COALESCE(?, has_garden),
+                build_year = COALESCE(?, build_year),
                 ownership_type = COALESCE(?, ownership_type), market_type = COALESCE(?, market_type), rent = COALESCE(?, rent),
                 commission = COALESCE(?, commission), listing_status = COALESCE(?, listing_status),
                 last_seen_at = CURRENT_TIMESTAMP
@@ -166,7 +169,7 @@ class FlatsDatabase {
             flat.totalFloors, flat.pricePerM2, flat.district, flat.createdAt, flat.publishedAt,
             flat.refreshedAt, flat.buildingType, toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasParkingSpace ?? null),
             toSqlBoolean(flat.hasStorageUnit ?? null), toSqlBoolean(flat.hasBasement ?? null), toSqlBoolean(flat.hasElevator),
-            toSqlBoolean(flat.hasBalcony), flat.buildYear, flat.ownershipType, flat.marketType ?? null, flat.rent,
+            toSqlBoolean(flat.hasBalcony), toSqlBoolean(flat.hasGarden), flat.buildYear, flat.ownershipType, flat.marketType ?? null, flat.rent,
             flat.commission, flat.listingStatus, flat.url
         );
     }
@@ -224,6 +227,7 @@ class FlatsDatabase {
             hasBasement: fromSqlBoolean(row.has_basement as number | null),
             hasElevator: fromSqlBoolean(row.has_elevator as number | null),
             hasBalcony: fromSqlBoolean(row.has_balcony as number | null), buildYear: (row.build_year as number | null) ?? null,
+            hasGarden: fromSqlBoolean(row.has_garden as number | null),
             ownershipType: (row.ownership_type as string | null) ?? null,
             marketType: (row.market_type as string | null) ?? null,
             hidden: Boolean(row.hidden), rent: (row.rent as number | null) ?? null,

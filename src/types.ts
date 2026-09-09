@@ -28,6 +28,7 @@ export interface Flat {
     hasBasement?: boolean | null;
     hasElevator: boolean | null;
     hasBalcony: boolean | null;
+    hasGarden: boolean | null;
     buildYear: number | null;
 }
 

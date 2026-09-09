@@ -19,6 +19,7 @@ class FlatsDatabase {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 source TEXT NOT NULL DEFAULT 'unknown',
                 url TEXT UNIQUE NOT NULL,
+                image_url TEXT,
                 title TEXT NOT NULL,
                 description TEXT,
                 price INTEGER,
@@ -39,6 +40,7 @@ class FlatsDatabase {
                 has_basement INTEGER,
                 has_elevator INTEGER,
                 has_balcony INTEGER,
+                has_garden INTEGER,
                 build_year INTEGER,
                 ownership_type TEXT,
                 market_type TEXT,
@@ -64,6 +66,7 @@ class FlatsDatabase {
         const existingColumns = new Set(columns.map(column => column.name));
         const missingColumns = [
             ['source', "TEXT NOT NULL DEFAULT 'unknown'"],
+            ['image_url', 'TEXT'],
             ['description', 'TEXT'],
             ['rooms', 'INTEGER'],
             ['address', 'TEXT'],
@@ -78,6 +81,7 @@ class FlatsDatabase {
             ['has_basement', 'INTEGER'],
             ['has_elevator', 'INTEGER'],
             ['has_balcony', 'INTEGER'],
+            ['has_garden', 'INTEGER'],
             ['build_year', 'INTEGER'],
             ['ownership_type', 'TEXT'],
             ['market_type', 'TEXT'],
@@ -122,28 +126,29 @@ class FlatsDatabase {
     insertFlat(flat) {
         const result = this.db.prepare(`
             INSERT OR IGNORE INTO flats (
-                source, url, title, description, price, area, rooms, address, floor, total_floors,
+                source, url, image_url, title, description, price, area, rooms, address, floor, total_floors,
                 price_per_m2, district, created_at, published_at, refreshed_at, building_type,
-                has_garage, has_parking_space, has_storage_unit, has_basement, has_elevator, has_balcony, build_year, ownership_type, market_type, rent, commission, listing_status
-            ) VALUES (${Array.from({ length: 28 }, () => '?').join(', ')})
-        `).run(flat.source, flat.url, flat.title, flat.description, flat.price, flat.area, flat.rooms, flat.address, flat.floor, flat.totalFloors, flat.pricePerM2, flat.district, flat.createdAt, flat.publishedAt, flat.refreshedAt, flat.buildingType, toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasParkingSpace ?? null), toSqlBoolean(flat.hasStorageUnit ?? null), toSqlBoolean(flat.hasBasement ?? null), toSqlBoolean(flat.hasElevator), toSqlBoolean(flat.hasBalcony), flat.buildYear, flat.ownershipType, flat.marketType ?? null, flat.rent, flat.commission, flat.listingStatus);
+                has_garage, has_parking_space, has_storage_unit, has_basement, has_elevator, has_balcony, has_garden, build_year, ownership_type, market_type, rent, commission, listing_status
+            ) VALUES (${Array.from({ length: 30 }, () => '?').join(', ')})
+        `).run(flat.source, flat.url, flat.imageUrl, flat.title, flat.description, flat.price, flat.area, flat.rooms, flat.address, flat.floor, flat.totalFloors, flat.pricePerM2, flat.district, flat.createdAt, flat.publishedAt, flat.refreshedAt, flat.buildingType, toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasParkingSpace ?? null), toSqlBoolean(flat.hasStorageUnit ?? null), toSqlBoolean(flat.hasBasement ?? null), toSqlBoolean(flat.hasElevator), toSqlBoolean(flat.hasBalcony), toSqlBoolean(flat.hasGarden), flat.buildYear, flat.ownershipType, flat.marketType ?? null, flat.rent, flat.commission, flat.listingStatus);
         return result.changes > 0;
     }
     updateFlat(flat) {
         this.db.prepare(`
             UPDATE flats SET
-                source = ?, title = ?, price = ?, area = ?, rooms = ?, address = ?, floor = ?, total_floors = ?, price_per_m2 = ?,
+                source = ?, image_url = COALESCE(?, image_url), title = ?, price = ?, area = ?, rooms = ?, address = ?, floor = ?, total_floors = ?, price_per_m2 = ?,
                 district = ?, created_at = ?, published_at = ?, refreshed_at = ?,
                 building_type = COALESCE(manual_building_type, ?),
                 has_garage = COALESCE(?, has_garage), has_elevator = COALESCE(?, has_elevator),
                 has_parking_space = COALESCE(?, has_parking_space), has_storage_unit = COALESCE(?, has_storage_unit),
                 has_basement = COALESCE(?, has_basement),
-                has_balcony = COALESCE(?, has_balcony), build_year = COALESCE(?, build_year),
+                has_balcony = COALESCE(?, has_balcony), has_garden = COALESCE(?, has_garden),
+                build_year = COALESCE(?, build_year),
                 ownership_type = COALESCE(?, ownership_type), market_type = COALESCE(?, market_type), rent = COALESCE(?, rent),
                 commission = COALESCE(?, commission), listing_status = COALESCE(?, listing_status),
                 last_seen_at = CURRENT_TIMESTAMP
             WHERE url = ?
-        `).run(flat.source, flat.title, flat.price, flat.area, flat.rooms, flat.address, flat.floor, flat.totalFloors, flat.pricePerM2, flat.district, flat.createdAt, flat.publishedAt, flat.refreshedAt, flat.buildingType, toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasParkingSpace ?? null), toSqlBoolean(flat.hasStorageUnit ?? null), toSqlBoolean(flat.hasBasement ?? null), toSqlBoolean(flat.hasElevator), toSqlBoolean(flat.hasBalcony), flat.buildYear, flat.ownershipType, flat.marketType ?? null, flat.rent, flat.commission, flat.listingStatus, flat.url);
+        `).run(flat.source, flat.imageUrl, flat.title, flat.price, flat.area, flat.rooms, flat.address, flat.floor, flat.totalFloors, flat.pricePerM2, flat.district, flat.createdAt, flat.publishedAt, flat.refreshedAt, flat.buildingType, toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasParkingSpace ?? null), toSqlBoolean(flat.hasStorageUnit ?? null), toSqlBoolean(flat.hasBasement ?? null), toSqlBoolean(flat.hasElevator), toSqlBoolean(flat.hasBalcony), toSqlBoolean(flat.hasGarden), flat.buildYear, flat.ownershipType, flat.marketType ?? null, flat.rent, flat.commission, flat.listingStatus, flat.url);
     }
     getAllFlats() {
         return this.db.prepare('SELECT * FROM flats').all().map(row => this.mapStoredFlat(row));
@@ -175,7 +180,7 @@ class FlatsDatabase {
     }
     mapStoredFlat(row) {
         return {
-            id: Number(row.id), source: String(row.source), url: String(row.url), title: String(row.title),
+            id: Number(row.id), source: String(row.source), url: String(row.url), imageUrl: row.image_url ?? null, title: String(row.title),
             description: row.description ?? null, price: row.price ?? null,
             area: row.area ?? null, rooms: row.rooms ?? null,
             address: row.address ?? null, floor: row.floor ?? null,
@@ -191,6 +196,7 @@ class FlatsDatabase {
             hasBasement: fromSqlBoolean(row.has_basement),
             hasElevator: fromSqlBoolean(row.has_elevator),
             hasBalcony: fromSqlBoolean(row.has_balcony), buildYear: row.build_year ?? null,
+            hasGarden: fromSqlBoolean(row.has_garden),
             ownershipType: row.ownership_type ?? null,
             marketType: row.market_type ?? null,
             hidden: Boolean(row.hidden), rent: row.rent ?? null,

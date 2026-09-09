@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import 'dotenv/config';
 import FlatsDatabase from './database';
-import type { StoredFlat } from './types';
+import { isUncertainListing, matchesConfiguredFilters } from './listing-filters';
 
 const port = Number(process.env.API_PORT || 3000);
 const publicDirectory = path.join(__dirname, '..', 'public');
@@ -102,11 +102,14 @@ async function sendListings(requestUrl: URL, response: ServerResponse): Promise<
         const includeExcludedBuildingTypes = requestUrl.searchParams.get('includeExcludedBuildingTypes') === 'true';
         const reviewBuildingType = requestUrl.searchParams.get('reviewBuildingType');
         const showHidden = requestUrl.searchParams.get('showHidden') === 'true';
+        const showUncertain = requestUrl.searchParams.get('uncertain') === 'true';
         const page = parsePage(requestUrl.searchParams.get('page'));
         const pageSize = parsePageSize(requestUrl.searchParams.get('pageSize') || requestUrl.searchParams.get('limit'));
         const filteredListings = db.getAllFlats()
             .filter(flat => Boolean(flat.hidden) === showHidden)
-            .filter(flat => matchesConfiguredFilters(flat, reviewBuildingType, includeExcludedBuildingTypes))
+            .filter(flat => showUncertain
+                ? isUncertainListing(flat)
+                : matchesConfiguredFilters(flat, reviewBuildingType, includeExcludedBuildingTypes))
             .filter(flat => reviewBuildingType
                 ? normalizeValue(flat.buildingType || '') === normalizeValue(reviewBuildingType)
                 : true)
@@ -130,11 +133,14 @@ async function sendProperties(requestUrl: URL, response: ServerResponse): Promis
         const includeExcludedBuildingTypes = requestUrl.searchParams.get('includeExcludedBuildingTypes') === 'true';
         const reviewBuildingType = requestUrl.searchParams.get('reviewBuildingType');
         const showHidden = requestUrl.searchParams.get('showHidden') === 'true';
+        const showUncertain = requestUrl.searchParams.get('uncertain') === 'true';
         const page = parsePage(requestUrl.searchParams.get('page'));
         const pageSize = parsePageSize(requestUrl.searchParams.get('pageSize') || requestUrl.searchParams.get('limit'));
         const listings = db.getAllFlats()
             .filter(flat => Boolean(flat.hidden) === showHidden)
-            .filter(flat => matchesConfiguredFilters(flat, reviewBuildingType, includeExcludedBuildingTypes))
+            .filter(flat => showUncertain
+                ? isUncertainListing(flat)
+                : matchesConfiguredFilters(flat, reviewBuildingType, includeExcludedBuildingTypes))
             .filter(flat => reviewBuildingType
                 ? normalizeValue(flat.buildingType || '') === normalizeValue(reviewBuildingType)
                 : true)
@@ -186,71 +192,13 @@ function cleanDescription(value: string | null): string | null {
     return value;
 }
 
-function isExcludedDistrict(value: string | null): boolean {
-    const excluded = (process.env.EXCLUDED_DISTRICTS || 'Ursus,Białołęka,Wawer')
-        .split(',')
-        .map(item => normalizeValue(item));
-    return value !== null && excluded.includes(normalizeValue(value));
-}
-
-function isExcludedBuildingType(value: string | null): boolean {
-    const excluded = (process.env.EXCLUDED_BUILDING_TYPES || 'wielka plyta')
-        .split(',')
-        .map(item => normalizeValue(item));
-    return value !== null && excluded.includes(normalizeValue(value));
-}
-
-function matchesConfiguredFilters(flat: StoredFlat, reviewBuildingType: string | null, includeExcludedBuildingTypes: boolean): boolean {
-    if (isExcludedDistrict(flat.district)) return false;
-
-    const allowedDistricts = parseList(process.env.ALLOWED_DISTRICTS);
-    if (allowedDistricts.length > 0 && (!flat.district || !allowedDistricts.some(district => sameNormalizedValue(district, flat.district as string)))) {
-        return false;
-    }
-
-    if (!reviewBuildingType && !includeExcludedBuildingTypes && isExcludedBuildingType(flat.buildingType)) return false;
-
-    const minPrice = parseConfiguredNumber(process.env.MIN_PRICE, 0);
-    const maxPrice = parseConfiguredNumber(process.env.MAX_PRICE, Number.MAX_SAFE_INTEGER);
-    if (flat.price !== null && (flat.price < minPrice || flat.price > maxPrice)) return false;
-
-    const minArea = parseConfiguredNumber(process.env.MIN_AREA, 0);
-    if (flat.area !== null && flat.area < minArea) return false;
-
-    if (process.env.REQUIRE_ELEVATOR !== 'false' && flat.hasElevator !== true) return false;
-    if (process.env.REQUIRE_GARAGE !== 'false' && !hasRequiredParking(flat)) return false;
-    if (process.env.REQUIRE_BALCONY !== 'false' && flat.hasBalcony !== true) return false;
-
-    return true;
-}
-
-function parseList(value: string | undefined): string[] {
-    return (value || '').split(',').map(item => item.trim()).filter(Boolean);
-}
-
-function sameNormalizedValue(left: string, right: string): boolean {
-    return normalizeValue(left) === normalizeValue(right);
-}
-
-function parseConfiguredNumber(value: string | undefined, fallback: number): number {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function hasRequiredParking(flat: StoredFlat): boolean {
-    if (flat.hasGarage === true) return true;
-    const currentYear = new Date().getFullYear();
-    const modernBuilding = flat.buildYear !== null && flat.buildYear >= currentYear - 20;
-    return modernBuilding && flat.hasParkingSpace === true;
+function parsePage(value: string | null): number {
+    const page = Number(value || 1);
+    return Number.isInteger(page) && page > 0 ? page : 1;
 }
 
 function normalizeValue(value: string): string {
     return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('pl-PL');
-}
-
-function parsePage(value: string | null): number {
-    const page = Number(value || 1);
-    return Number.isInteger(page) && page > 0 ? page : 1;
 }
 
 function parsePageSize(value: string | null): number {

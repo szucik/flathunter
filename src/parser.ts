@@ -79,6 +79,7 @@ class Parser {
             hasStorageUnit: /komórka lokatorska|komorka lokatorska/i.test(detailText) ? true : null,
             hasBasement: /piwnica|pomieszczenie piwniczne/i.test(detailText) ? true : null,
             hasBalcony: /balkon|loggia|taras/.test(detailText) ? true : null
+            ,hasGarden: /ogródek|ogrodek/.test(detailText) ? true : null
         };
     }
 
@@ -116,6 +117,7 @@ class Parser {
             hasGarage: null,
             hasElevator: null,
             hasBalcony: null,
+            hasGarden: null,
             buildYear: null
         };
     }

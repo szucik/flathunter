@@ -8,6 +8,7 @@ const promises_1 = require("node:fs/promises");
 const node_path_1 = __importDefault(require("node:path"));
 require("dotenv/config");
 const database_1 = __importDefault(require("./database"));
+const listing_filters_1 = require("./listing-filters");
 const port = Number(process.env.API_PORT || 3000);
 const publicDirectory = node_path_1.default.join(__dirname, '..', 'public');
 async function requestHandler(request, response) {
@@ -96,14 +97,17 @@ async function sendListings(requestUrl, response) {
         const includeExcludedBuildingTypes = requestUrl.searchParams.get('includeExcludedBuildingTypes') === 'true';
         const reviewBuildingType = requestUrl.searchParams.get('reviewBuildingType');
         const showHidden = requestUrl.searchParams.get('showHidden') === 'true';
+        const showUncertain = requestUrl.searchParams.get('uncertain') === 'true';
         const page = parsePage(requestUrl.searchParams.get('page'));
         const pageSize = parsePageSize(requestUrl.searchParams.get('pageSize') || requestUrl.searchParams.get('limit'));
         const filteredListings = db.getAllFlats()
             .filter(flat => Boolean(flat.hidden) === showHidden)
-            .filter(flat => !isExcludedDistrict(flat.district))
+            .filter(flat => showUncertain
+            ? (0, listing_filters_1.isUncertainListing)(flat)
+            : (0, listing_filters_1.matchesConfiguredFilters)(flat, reviewBuildingType, includeExcludedBuildingTypes))
             .filter(flat => reviewBuildingType
             ? normalizeValue(flat.buildingType || '') === normalizeValue(reviewBuildingType)
-            : includeExcludedBuildingTypes || !isExcludedBuildingType(flat.buildingType))
+            : true)
             .filter(flat => !district || flat.district === district)
             .filter(flat => !portal || getPortalName(flat.url) === portal)
             .map(flat => ({ ...flat, description: cleanDescription(flat.description), portal: getPortalName(flat.url) }));
@@ -123,14 +127,17 @@ async function sendProperties(requestUrl, response) {
         const includeExcludedBuildingTypes = requestUrl.searchParams.get('includeExcludedBuildingTypes') === 'true';
         const reviewBuildingType = requestUrl.searchParams.get('reviewBuildingType');
         const showHidden = requestUrl.searchParams.get('showHidden') === 'true';
+        const showUncertain = requestUrl.searchParams.get('uncertain') === 'true';
         const page = parsePage(requestUrl.searchParams.get('page'));
         const pageSize = parsePageSize(requestUrl.searchParams.get('pageSize') || requestUrl.searchParams.get('limit'));
         const listings = db.getAllFlats()
             .filter(flat => Boolean(flat.hidden) === showHidden)
-            .filter(flat => !isExcludedDistrict(flat.district))
+            .filter(flat => showUncertain
+            ? (0, listing_filters_1.isUncertainListing)(flat)
+            : (0, listing_filters_1.matchesConfiguredFilters)(flat, reviewBuildingType, includeExcludedBuildingTypes))
             .filter(flat => reviewBuildingType
             ? normalizeValue(flat.buildingType || '') === normalizeValue(reviewBuildingType)
-            : includeExcludedBuildingTypes || !isExcludedBuildingType(flat.buildingType))
+            : true)
             .filter(flat => !district || flat.district === district)
             .filter(flat => !portal || getPortalName(flat.url) === portal)
             .map(flat => ({ ...flat, description: cleanDescription(flat.description), portal: getPortalName(flat.url) }));
@@ -175,24 +182,12 @@ function cleanDescription(value) {
     }
     return value;
 }
-function isExcludedDistrict(value) {
-    const excluded = (process.env.EXCLUDED_DISTRICTS || 'Ursus,Białołęka,Wawer')
-        .split(',')
-        .map(item => normalizeValue(item));
-    return value !== null && excluded.includes(normalizeValue(value));
-}
-function isExcludedBuildingType(value) {
-    const excluded = (process.env.EXCLUDED_BUILDING_TYPES || 'wielka plyta')
-        .split(',')
-        .map(item => normalizeValue(item));
-    return value !== null && excluded.includes(normalizeValue(value));
-}
-function normalizeValue(value) {
-    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('pl-PL');
-}
 function parsePage(value) {
     const page = Number(value || 1);
     return Number.isInteger(page) && page > 0 ? page : 1;
+}
+function normalizeValue(value) {
+    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('pl-PL');
 }
 function parsePageSize(value) {
     const pageSize = Number(value || 20);
@@ -213,7 +208,7 @@ function sendJson(response, statusCode, body) {
 const server = (0, node_http_1.createServer)((request, response) => {
     void requestHandler(request, response);
 });
-server.listen(port, () => {
+server.listen(port, '0.0.0.0', () => {
     console.log(`FlatHunter API: http://localhost:${port}`);
     console.log(`Listings endpoint: http://localhost:${port}/api/listings`);
 });

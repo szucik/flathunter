@@ -106,7 +106,8 @@ class Parser {
             hasParkingSpace: this.parseParkingText(detailText),
             hasStorageUnit: /komórka lokatorska|komorka lokatorska/i.test(detailText) ? true : null,
             hasBasement: /piwnica|pomieszczenie piwniczne/i.test(detailText) ? true : null,
-            hasBalcony: /balkon|loggia|taras/.test(detailText) ? true : null
+            hasBalcony: /balkon|loggia|taras/.test(detailText) ? true : null,
+            hasGarden: /ogródek|ogrodek/.test(detailText) ? true : null
         };
     }
     parseCard($, element) {
@@ -115,6 +116,7 @@ class Parser {
         if (!url)
             return null;
         const fullUrl = this.normalizeListingUrl(url.startsWith('http') ? url : `https://www.olx.pl${url}`);
+        const imageUrl = this.parseImageUrl(card);
         const title = card.find('a[data-testid="card-title-link"] h4').text().trim();
         const price = this.parsePrice(card.find('[data-testid="ad-price"]').text().trim());
         const paramsText = card.find('[data-testid="blueprint-card-param-icon"]').parent().text().trim();
@@ -123,6 +125,7 @@ class Parser {
         return {
             source: 'unknown',
             url: fullUrl,
+            imageUrl,
             title,
             description: null,
             price,
@@ -140,8 +143,17 @@ class Parser {
             hasGarage: null,
             hasElevator: null,
             hasBalcony: null,
+            hasGarden: null,
             buildYear: null
         };
+    }
+    parseImageUrl(card) {
+        const image = card.find('img').first();
+        const source = image.attr('src') || image.attr('data-src') || image.attr('data-lazy-src');
+        if (source)
+            return source;
+        const srcset = image.attr('srcset');
+        return srcset?.split(',')[0]?.trim().split(/\s+/)[0] || null;
     }
     parsePrice(priceText) {
         const match = priceText.match(/[\d\s]+/);

@@ -5,6 +5,7 @@ import ListingAnalyzer from './listing-analyzer';
 import PropertyMatcher from './property-matcher';
 import type { Flat, ListingSource } from './types';
 import TelegramNotifier from './telegram-notifier';
+import { matchesConfiguredFilters } from './listing-filters';
 
 async function main(): Promise<void> {
     console.log('OLX Scraper - Start');
@@ -50,40 +51,13 @@ async function main(): Promise<void> {
 
         for (const flat of flats) {
             const analyzedFlat = analyzer.analyze(flat);
+            if (!matchesConfiguredFilters(analyzedFlat)) {
+                filteredCount++;
+                continue;
+            }
+
             db.updateFlat(analyzedFlat);
             const inserted = db.insertFlat(analyzedFlat);
-            if (excludedDistricts.some(district => sameDistrict(district, analyzedFlat.district))) {
-                filteredCount++;
-                continue;
-            }
-            if (excludedBuildingTypes.some(type => sameNormalizedValue(type, analyzedFlat.buildingType))) {
-                filteredCount++;
-                continue;
-            }
-            if (allowedDistricts.length > 0 && !allowedDistricts.includes(analyzedFlat.district || '')) {
-                filteredCount++;
-                continue;
-            }
-            if (analyzedFlat.price !== null && (analyzedFlat.price < minPrice || analyzedFlat.price > maxPrice)) {
-                filteredCount++;
-                continue;
-            }
-            if (analyzedFlat.area !== null && analyzedFlat.area < minArea) {
-                filteredCount++;
-                continue;
-            }
-            if (requireElevator && analyzedFlat.hasElevator !== true) {
-                filteredCount++;
-                continue;
-            }
-            if (requireGarage && !hasRequiredParking(analyzedFlat)) {
-                filteredCount++;
-                continue;
-            }
-            if (requireBalcony && analyzedFlat.hasBalcony !== true) {
-                filteredCount++;
-                continue;
-            }
 
             if (inserted) {
                 const savedFlat = db.getFlatByUrl(analyzedFlat.url);
@@ -138,19 +112,6 @@ function parseList(value: string | undefined): string[] {
     return (value || '').split(',').map(item => item.trim()).filter(Boolean);
 }
 
-function sameDistrict(left: string, right: string | null): boolean {
-    if (!right) return false;
-    return sameNormalizedValue(left, right);
-}
-
-function sameNormalizedValue(left: string, right: string | null): boolean {
-    return right !== null && normalizeValue(left) === normalizeValue(right);
-}
-
-function normalizeValue(value: string): string {
-    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('pl-PL');
-}
-
 function parseNonNegativeInt(value: string | undefined, fallback: number): number {
     const parsed = Number(value);
     return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
@@ -174,9 +135,3 @@ if (require.main === module) {
     });
 }
 
-function hasRequiredParking(flat: Flat): boolean {
-    if (flat.hasGarage === true) return true;
-    const currentYear = new Date().getFullYear();
-    const modernBuilding = flat.buildYear !== null && flat.buildYear >= currentYear - 20;
-    return modernBuilding && flat.hasParkingSpace === true;
-}
