@@ -5,45 +5,57 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>FlatHunter | Oferty</title>
     <style>
-        :root { color-scheme: light; --ink: #182126; --muted: #68747a; --paper: #f4f1eb; --card: #fffdf8; --line: #ddd8ce; --accent: #e66b43; --mint: #c9e2d0; }
+        :root { color-scheme: light; --ink: #1d1d1d; --muted: #5d5d5d; --paper: #f5f3f1; --card: #ffffff; --line: #e7e2dc; --accent: #1c1c1c; --soft: #f1efe9; --price: #b8572a; --button: #2a2a2a; --button-hover: #1f1f1f; }
         * { box-sizing: border-box; }
-        body { margin: 0; color: var(--ink); background: radial-gradient(circle at 85% 0%, #f8d9c9 0, transparent 28rem), var(--paper); font: 16px/1.5 Georgia, serif; overflow-x: hidden; }
+        body { margin: 0; color: var(--ink); background: var(--paper); font: 16px/1.5 "Segoe UI", sans-serif; overflow-x: hidden; }
         header { max-width: 1180px; margin: 0 auto; padding: 42px 24px 24px; display: flex; justify-content: space-between; align-items: end; gap: 24px; }
-        h1 { min-width: 0; margin: 0; font-size: 3.8rem; line-height: .98; font-weight: 500; overflow-wrap: anywhere; }
-        header p { max-width: 360px; margin: 0; color: var(--muted); font-size: 1.05rem; }
+        h1 { min-width: 0; margin: 0; font-size: 3.3rem; line-height: .96; font-weight: 600; letter-spacing: -0.05em; overflow-wrap: anywhere; }
+        header p { max-width: 360px; margin: 0; color: var(--muted); font-size: 1rem; }
         main { max-width: 1180px; margin: 0 auto; padding: 0 24px 56px; }
         .toolbar { display: flex; flex-wrap: wrap; gap: 10px; padding: 16px 0 26px; border-bottom: 1px solid var(--line); }
-        select, button { min-height: 42px; border: 1px solid var(--line); border-radius: 4px; padding: 0 14px; background: var(--card); color: var(--ink); font: inherit; cursor: pointer; }
-        button { border-color: var(--ink); background: var(--ink); color: white; }
+        select, button { min-height: 42px; border: 1px solid var(--line); border-radius: 999px; padding: 0 14px; background: var(--card); color: var(--ink); font: inherit; cursor: pointer; }
+        button { border-color: var(--button); background: linear-gradient(180deg, var(--button) 0%, var(--button-hover) 100%); color: white; }
         #status { margin: 22px 0 14px; color: var(--muted); }
         .review-tab { min-height: 42px; margin-left: auto; border-color: var(--line); background: transparent; color: var(--muted); font-size: .82rem; }
         .review-tab + .review-tab { margin-left: 0; }
-        .review-tab.active { border-color: var(--accent); color: var(--accent); }
-        .grid { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
-        article { display: grid; grid-template-columns: minmax(240px, 1.1fr) minmax(500px, 2.4fr) minmax(210px, .9fr); gap: 28px; align-items: start; padding: 22px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
-        article:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
+        .review-tab.active { border-color: var(--ink); color: var(--ink); background: var(--soft); }
+        .grid { display: flex; flex-direction: column; gap: 14px; padding-top: 18px; border-top: 1px solid var(--line); }
+        article { display: grid; grid-template-columns: minmax(240px, 1.1fr) minmax(500px, 2.4fr) minmax(210px, .9fr); gap: 28px; align-items: start; padding: 22px; border: 1px solid var(--line); border-radius: 18px; background: var(--card); cursor: pointer; }
+        article:focus-visible { outline: 2px solid var(--ink); outline-offset: 5px; }
         .listing-summary, .listing-facts, .listing-links { min-width: 0; }
-        article h2 { margin: 0 0 12px; font-size: 1.15rem; line-height: 1.32; font-weight: 600; letter-spacing: 0; }
-        .price { margin-bottom: 14px; color: var(--accent); font-size: 1.35rem; font-weight: 700; }
+        article h2 { margin: 0 0 12px; font-size: 1.12rem; line-height: 1.35; font-weight: 600; letter-spacing: -0.02em; }
+        .price { margin-bottom: 14px; color: var(--price); font-size: 1.32rem; font-weight: 700; }
         .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 20px; margin: 0; color: var(--muted); font-family: sans-serif; font-size: .78rem; }
         .facts > div { min-width: 0; }
         .facts strong { display: block; color: var(--ink); font-size: .88rem; line-height: 1.25; overflow-wrap: anywhere; }
-        .description { margin: 18px 0 0; color: var(--muted); font-size: .9rem; }
-        article a { color: var(--ink); font-family: sans-serif; font-weight: 700; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+        .description { grid-column: 1 / -1; margin: 0; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; line-height: 1.6; }
+        article a { color: var(--ink); font-family: sans-serif; font-weight: 700; text-decoration: none; }
         .sources { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 14px; font: 700 .75rem/1.2 sans-serif; text-transform: uppercase; }
         .source { padding: 5px 7px; border: 1px solid var(--line); border-radius: 3px; }
         .portal { margin-top: 0; padding-top: 0; }
         .portal + .portal { margin-top: 12px; }
         .portal-title { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 5px; font: 700 .8rem/1.2 sans-serif; text-transform: uppercase; }
         .portal-name { display: inline-flex; align-items: center; gap: 6px; }
-        .portal-badge { padding: 3px 5px; border-radius: 3px; background: var(--mint); color: var(--ink); font-size: .68rem; }
-        .portal-link { display: inline-flex; align-items: center; width: fit-content; padding: 7px 9px; border-radius: 4px; background: var(--mint); color: var(--ink); font-size: .8rem; }
-        .portal-price { color: var(--accent); font-weight: 700; }
+        .portal-badge { padding: 3px 5px; border-radius: 3px; background: var(--soft); color: var(--ink); font-size: .68rem; }
+        .portal-link { display: inline-flex; align-items: center; width: fit-content; padding: 7px 9px; border-radius: 999px; background: linear-gradient(180deg, #f4efe8 0%, #ece6df 100%); color: var(--ink); font-size: .8rem; }
+        .portal-price { color: var(--price); font-weight: 700; }
         .portal.visited { opacity: .72; }
         .visited-label { margin-left: 6px; color: var(--muted); font-size: .68rem; text-transform: none; }
-        .manual-actions { margin-top: 12px; }
-        .manual-actions select { min-height: 30px; width: auto; max-width: 100%; padding: 0 8px; color: var(--muted); font: .7rem/1 sans-serif; }
-        .hidden-action { margin-left: 6px; min-height: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: var(--muted); font: .7rem/1 sans-serif; }
+        .manual-actions { margin-top: 12px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .manual-actions select { min-height: 30px; width: auto; max-width: 100%; padding: 0 8px; color: var(--muted); font: .7rem/1 sans-serif; border-radius: 999px; }
+        .hidden-action { margin-left: 0; min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--muted); font: .7rem/1 sans-serif; }
+        .confirm-modal[hidden] { display: none; }
+        .confirm-modal { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; background: rgba(24, 33, 38, .18); }
+        .confirm-dialog { width: min(100%, 390px); padding: 24px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: 0 12px 30px rgba(24, 33, 38, .08); }
+        .confirm-dialog h2 { margin: 0 0 8px; font-size: 1.2rem; }
+        .confirm-dialog p { margin: 0; color: var(--muted); font-family: sans-serif; font-size: .9rem; }
+        .confirm-actions { display: flex; gap: 10px; margin-top: 22px; }
+        .confirm-actions button { flex: 1; min-height: 44px; }
+        .confirm-actions .cancel { border-color: var(--line); background: transparent; color: var(--ink); }
+        .pagination { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 24px 0 8px; color: var(--muted); font-family: sans-serif; font-size: .9rem; }
+        .pagination button { min-height: 36px; padding: 0 12px; border-radius: 999px; }
+        .pagination button:disabled { cursor: default; opacity: .45; }
+        .empty { padding: 35px 0; color: var(--muted); }
         .confirm-modal[hidden] { display: none; }
         .confirm-modal { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; background: #18212666; }
         .confirm-dialog { width: min(100%, 390px); padding: 24px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); box-shadow: 0 18px 60px #18212633; }
@@ -173,7 +185,6 @@
                             <button type="button" class="hidden-action" data-hidden-id="${main.id}">${main.hidden ? 'Przywróć' : 'Ukryj'}</button>
                         </div>
                         <div class="price">od ${formatNumber(property.lowestPrice)} zł</div>
-                        <p class="description">${escapeHtml((main.description || 'Brak opisu').slice(0, 260))}</p>
                     </div>
                     <div class="listing-facts">
                         <div class="facts">
@@ -202,6 +213,7 @@
                         </div>
                     `).join('')}
                     </div>
+                    <p class="description">${escapeHtml((main.description || 'Brak opisu').slice(0, 260))}</p>
                 </article>
             `;
             }).join('') : '<p class="empty">Brak ofert spełniających filtry.</p>';

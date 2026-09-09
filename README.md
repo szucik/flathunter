@@ -1,11 +1,5 @@
 # Real Estate Listing Scraper
 
-A personal Node.js and TypeScript scraper for collecting apartment listings from OLX. It uses Playwright to load listing pages, Cheerio to parse listing cards, and SQLite to store the results locally.
-
-The project is intended for personal apartment hunting. It currently implements the OLX adapter. Otodom support is planned but is not implemented yet.
-
-The scraper uses a source adapter abstraction. Application code depends on the `ListingSource` contract instead of a specific website. Each future portal should have its own adapter and parser, while filtering, persistence, scheduling, and notifications remain shared.
-
 ## Features
 
 - Scrapes multiple result pages from an OLX search URL.
@@ -258,6 +252,14 @@ The `flats` table currently contains:
 - `property_group_id`: identifier of a probable matching property across portals.
 - `first_seen_at`: exact local timestamp when FlatHunter first stored the listing.
 - `last_seen_at`: exact local timestamp when FlatHunter last saw the listing.
+
+## Project description
+
+A personal Node.js and TypeScript scraper for collecting apartment listings from OLX. It uses Playwright to load listing pages, Cheerio to parse listing cards, and SQLite to store the results locally.
+
+The project is intended for personal apartment hunting. It currently implements the OLX adapter. Otodom support is planned but is not implemented yet.
+
+The scraper uses a source adapter abstraction. Application code depends on the `ListingSource` contract instead of a specific website. Each future portal should have its own adapter and parser, while filtering, persistence, scheduling, and notifications remain shared.
 - `scraped_at`: local database insertion timestamp.
 
 The database file and logs are ignored by Git. The `.env` file is also ignored and must not be committed.
