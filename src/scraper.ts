@@ -20,7 +20,7 @@ class OlxScraper implements ListingSource {
                     : `${targetUrl}${targetUrl.includes('?') ? '&' : '?'}page=${pageNum}`;
 
                 console.log(`Scrapuje strone ${pageNum}: ${pageUrl}`);
-                await page.goto(pageUrl, { waitUntil: 'networkidle', timeout: 30000 });
+                await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
                 await page.waitForSelector('[data-cy="l-card"]', { timeout: 10000 });
 
                 const flats = this.parser.parseListingPage(await page.content())
