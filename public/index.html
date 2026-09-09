@@ -7,7 +7,7 @@
     <style>
         :root { color-scheme: light; --ink: #182126; --muted: #68747a; --paper: #f4f1eb; --card: #fffdf8; --line: #ddd8ce; --accent: #e66b43; --mint: #c9e2d0; }
         * { box-sizing: border-box; }
-        body { margin: 0; color: var(--ink); background: radial-gradient(circle at 85% 0%, #f8d9c9 0, transparent 28rem), var(--paper); font: 16px/1.5 Georgia, serif; }
+        body { margin: 0; color: var(--ink); background: radial-gradient(circle at 85% 0%, #f8d9c9 0, transparent 28rem), var(--paper); font: 16px/1.5 Georgia, serif; overflow-x: hidden; }
         header { max-width: 1180px; margin: 0 auto; padding: 42px 24px 24px; display: flex; justify-content: space-between; align-items: end; gap: 24px; }
         h1 { min-width: 0; margin: 0; font-size: 3.8rem; line-height: .98; font-weight: 500; overflow-wrap: anywhere; }
         header p { max-width: 360px; margin: 0; color: var(--muted); font-size: 1.05rem; }
@@ -16,8 +16,12 @@
         select, button { min-height: 42px; border: 1px solid var(--line); border-radius: 4px; padding: 0 14px; background: var(--card); color: var(--ink); font: inherit; cursor: pointer; }
         button { border-color: var(--ink); background: var(--ink); color: white; }
         #status { margin: 22px 0 14px; color: var(--muted); }
+        .review-tab { min-height: 42px; margin-left: auto; border-color: var(--line); background: transparent; color: var(--muted); font-size: .82rem; }
+        .review-tab + .review-tab { margin-left: 0; }
+        .review-tab.active { border-color: var(--accent); color: var(--accent); }
         .grid { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
-        article { display: grid; grid-template-columns: minmax(240px, 1.1fr) minmax(500px, 2.4fr) minmax(210px, .9fr); gap: 28px; align-items: start; padding: 22px 0; border-bottom: 1px solid var(--line); }
+        article { display: grid; grid-template-columns: minmax(240px, 1.1fr) minmax(500px, 2.4fr) minmax(210px, .9fr); gap: 28px; align-items: start; padding: 22px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+        article:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
         .listing-summary, .listing-facts, .listing-links { min-width: 0; }
         article h2 { margin: 0 0 12px; font-size: 1.15rem; line-height: 1.32; font-weight: 600; letter-spacing: 0; }
         .price { margin-bottom: 14px; color: var(--accent); font-size: 1.35rem; font-weight: 700; }
@@ -30,13 +34,24 @@
         .source { padding: 5px 7px; border: 1px solid var(--line); border-radius: 3px; }
         .portal { margin-top: 0; padding-top: 0; }
         .portal + .portal { margin-top: 12px; }
-        .portal-title { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 5px; font: 700 .8rem/1.2 sans-serif; text-transform: uppercase; }
+        .portal-title { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 5px; font: 700 .8rem/1.2 sans-serif; text-transform: uppercase; }
         .portal-name { display: inline-flex; align-items: center; gap: 6px; }
         .portal-badge { padding: 3px 5px; border-radius: 3px; background: var(--mint); color: var(--ink); font-size: .68rem; }
-        .portal-title a { font-size: .8rem; }
+        .portal-link { display: inline-flex; align-items: center; width: fit-content; padding: 7px 9px; border-radius: 4px; background: var(--mint); color: var(--ink); font-size: .8rem; }
         .portal-price { color: var(--accent); font-weight: 700; }
         .portal.visited { opacity: .72; }
         .visited-label { margin-left: 6px; color: var(--muted); font-size: .68rem; text-transform: none; }
+        .manual-actions { margin-top: 12px; }
+        .manual-actions select { min-height: 30px; width: auto; max-width: 100%; padding: 0 8px; color: var(--muted); font: .7rem/1 sans-serif; }
+        .hidden-action { margin-left: 6px; min-height: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: var(--muted); font: .7rem/1 sans-serif; }
+        .confirm-modal[hidden] { display: none; }
+        .confirm-modal { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; background: #18212666; }
+        .confirm-dialog { width: min(100%, 390px); padding: 24px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); box-shadow: 0 18px 60px #18212633; }
+        .confirm-dialog h2 { margin: 0 0 8px; font-size: 1.2rem; }
+        .confirm-dialog p { margin: 0; color: var(--muted); font-family: sans-serif; font-size: .9rem; }
+        .confirm-actions { display: flex; gap: 10px; margin-top: 22px; }
+        .confirm-actions button { flex: 1; min-height: 44px; }
+        .confirm-actions .cancel { border-color: var(--line); background: transparent; color: var(--ink); }
         .pagination { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 24px 0 8px; color: var(--muted); font-family: sans-serif; font-size: .9rem; }
         .pagination button { min-height: 36px; padding: 0 12px; }
         .pagination button:disabled { cursor: default; opacity: .45; }
@@ -49,6 +64,7 @@
             article > * + * { margin-top: 16px; }
             .facts { grid-template-columns: repeat(3, minmax(80px, 1fr)); }
             .portal { padding-top: 12px; border-top: 1px solid var(--line); }
+            .review-tab { margin-left: 0; }
         }
         @media (max-width: 420px) {
             header { padding-inline: 16px; }
@@ -56,11 +72,36 @@
             main { padding-inline: 16px; }
             .facts { grid-template-columns: repeat(2, minmax(90px, 1fr)); }
         }
+        @media (max-width: 600px) {
+            header { padding: 26px 16px 18px; }
+            h1 { font-size: 2.35rem; }
+            header p { max-width: none; font-size: .95rem; }
+            main { padding: 0 16px 40px; }
+            .toolbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; padding: 12px 0 18px; }
+            .toolbar select, .toolbar button { width: 100%; min-width: 0; padding-inline: 10px; font-size: .86rem; }
+            .toolbar #refresh { grid-column: 1; }
+            .toolbar #wp-tab { grid-column: 2; margin-left: 0; }
+            .toolbar #rama-tab { grid-column: 1 / -1; margin-left: 0; }
+            #status { margin: 16px 0 12px; font-size: .9rem; }
+            article { padding: 18px 0; }
+            article h2 { font-size: 1.05rem; line-height: 1.3; }
+            .price { font-size: 1.2rem; }
+            .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+            .facts strong { font-size: .86rem; }
+            .portal-title { align-items: flex-start; flex-wrap: wrap; }
+            .portal-name { min-width: 0; flex-wrap: wrap; }
+            .portal-price { margin-left: auto; }
+            .pagination { flex-wrap: wrap; gap: 10px; }
+        }
+        @media (max-width: 420px) {
+            h1 { font-size: 2.15rem; }
+            .toolbar select, .toolbar button { font-size: .8rem; padding-inline: 8px; }
+        }
     </style>
 </head>
 <body>
     <header>
-        <h1>FlatHunter<br><em>oferty</em></h1>
+        <h1 id="page-title">FlatHunter<br><em>oferty</em></h1>
         <p>Twoja lokalna lista mieszkań. Najnowsze rekordy z bazy, opisy i wykryte cechy w jednym miejscu.</p>
     </header>
     <main>
@@ -68,29 +109,50 @@
             <select id="district"><option value="">Wszystkie dzielnice</option></select>
             <select id="source"><option value="">Wszystkie źródła</option></select>
             <button id="refresh">Odśwież oferty</button>
+            <button id="wp-tab" class="review-tab" type="button">WP do analizy</button>
+            <button id="rama-tab" class="review-tab" type="button">Rama H do analizy</button>
+            <button id="hidden-tab" class="review-tab" type="button">Ukryte</button>
         </div>
         <div id="status">Ładowanie...</div>
         <section id="listings" class="grid"></section>
         <nav id="pagination" class="pagination" aria-label="Paginacja ofert"></nav>
     </main>
+    <div id="confirm-modal" class="confirm-modal" hidden>
+        <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+            <h2 id="confirm-title">Potwierdź oznaczenie</h2>
+            <p id="confirm-message"></p>
+            <div class="confirm-actions">
+                <button id="confirm-cancel" class="cancel" type="button">Anuluj</button>
+                <button id="confirm-submit" type="button">Potwierdź</button>
+            </div>
+        </div>
+    </div>
     <script>
         const listingsElement = document.querySelector('#listings');
         const statusElement = document.querySelector('#status');
         const districtElement = document.querySelector('#district');
         const sourceElement = document.querySelector('#source');
         const paginationElement = document.querySelector('#pagination');
+        const confirmModal = document.querySelector('#confirm-modal');
+        const confirmMessage = document.querySelector('#confirm-message');
+        const confirmCancel = document.querySelector('#confirm-cancel');
+        const confirmSubmit = document.querySelector('#confirm-submit');
         const pageSize = 20;
         let currentPage = 1;
+        let reviewBuildingType = null;
+        let showHidden = false;
 
         async function loadListings() {
             statusElement.textContent = 'Ładowanie ofert...';
             const params = new URLSearchParams({ page: String(currentPage), pageSize: String(pageSize) });
+            if (reviewBuildingType) params.set('reviewBuildingType', reviewBuildingType);
+            if (showHidden) params.set('showHidden', 'true');
             if (districtElement.value) params.set('district', districtElement.value);
             if (sourceElement.value) params.set('portal', sourceElement.value);
             const response = await fetch(`/api/properties?${params}`);
             const data = await response.json();
             renderProperties(data.properties);
-            statusElement.textContent = `${data.total} nieruchomości, strona ${data.page} z ${Math.max(1, Math.ceil(data.total / data.pageSize))}`;
+            statusElement.firstChild.textContent = `${data.total} nieruchomości, strona ${data.page} z ${Math.max(1, Math.ceil(data.total / data.pageSize))} `;
             renderPagination(data);
         }
 
@@ -98,10 +160,18 @@
             listingsElement.innerHTML = properties.length ? properties.map(property => {
                 const main = property.listings[0];
                 return `
-                <article>
+                <article data-primary-url="${escapeAttribute(main.url)}" tabindex="0" role="link" aria-label="Otwórz ogłoszenie ${escapeAttribute(main.title)}">
                     <div class="listing-summary">
                         <h2>${formatTitle(main.title)}</h2>
-                        <div class="sources">${property.sources.map(source => `<span class="source">${escapeHtml(source)}</span>`).join('')}</div>
+                        <div class="manual-actions">
+                            <select data-manual-id="${main.id}" data-current-type="${escapeAttribute(main.buildingType || '')}" aria-label="Oznacz jako">
+                                <option value="" ${!['wielka plyta', 'rama h', 'kamienica'].includes(main.buildingType) ? 'selected' : ''}>Oznacz jako</option>
+                                <option value="wielka plyta" ${main.buildingType === 'wielka plyta' ? 'selected' : ''}>WP</option>
+                                <option value="rama h" ${main.buildingType === 'rama h' ? 'selected' : ''}>Rama H</option>
+                                <option value="kamienica" ${main.buildingType === 'kamienica' ? 'selected' : ''}>Kamienica</option>
+                            </select>
+                            <button type="button" class="hidden-action" data-hidden-id="${main.id}">${main.hidden ? 'Przywróć' : 'Ukryj'}</button>
+                        </div>
                         <div class="price">od ${formatNumber(property.lowestPrice)} zł</div>
                         <p class="description">${escapeHtml((main.description || 'Brak opisu').slice(0, 260))}</p>
                     </div>
@@ -112,8 +182,12 @@
                         <div>Pokoje<strong>${main.rooms ?? '-'}</strong></div>
                         <div>Piętro<strong>${main.floor ?? '-'}/${main.totalFloors ?? '-'}</strong></div>
                         <div>Własność<strong>${escapeHtml(main.ownershipType || '-')}</strong></div>
+                        <div>Rodzaj zabudowy<strong>${escapeHtml(formatBuildingType(main.buildingType))}</strong></div>
                         <div>Winda<strong>${formatBoolean(main.hasElevator)}</strong></div>
                         <div>Garaż<strong>${formatBoolean(main.hasGarage)}</strong></div>
+                        <div>Miejsce postojowe<strong>${formatBoolean(main.hasParkingSpace)}</strong></div>
+                        <div>Komórka<strong>${formatBoolean(main.hasStorageUnit)}</strong></div>
+                        <div>Piwnica<strong>${formatBoolean(main.hasBasement)}</strong></div>
                         <div>Balkon<strong>${formatBoolean(main.hasBalcony)}</strong></div>
                         <div>Rok budowy<strong>${main.buildYear ?? '-'}</strong></div>
                         <div>Czynsz<strong>${formatNumber(main.rent)} zł</strong></div>
@@ -123,8 +197,8 @@
                     <div class="listing-links">
                     ${property.listings.map(listing => `
                         <div class="portal${isVisited(listing.url) ? ' visited' : ''}">
-                            <div class="portal-title"><span class="portal-name">${escapeHtml(listing.source)} =&gt; <span class="portal-badge">${escapeHtml(listing.portal || getPortalName(listing.url))}</span>${isVisited(listing.url) ? '<span class="visited-label">Odwiedzone</span>' : ''}</span><span class="portal-price">${formatNumber(listing.price)} zł</span></div>
-                            <a data-listing-url="${escapeAttribute(listing.url)}" href="${escapeAttribute(listing.url)}" target="_blank" rel="noreferrer">Otwórz ofertę →</a>
+                            <div class="portal-title"><span class="portal-price">${formatNumber(listing.price)} zł</span>${isVisited(listing.url) ? '<span class="visited-label">Odwiedzone</span>' : ''}</div>
+                            <a class="portal-link" data-listing-url="${escapeAttribute(listing.url)}" href="${escapeAttribute(listing.url)}" target="_blank" rel="noreferrer">${getPortalActionLabel(listing)} →</a>
                         </div>
                     `).join('')}
                     </div>
@@ -144,11 +218,21 @@
 
         function formatNumber(value) { return value === null ? '-' : new Intl.NumberFormat('pl-PL').format(value); }
         function formatBoolean(value) { return value === null ? 'Nieznane' : value ? 'Tak' : 'Nie'; }
+        function formatBuildingType(value) {
+            return value === 'wielka plyta' ? 'Wielka płyta'
+                : value === 'rama h' ? 'Rama H'
+                    : value === 'kamienica' ? 'Kamienica'
+                        : value || 'Nieznany';
+        }
         function formatTitle(value) {
             const title = String(value).replace(/[✮★☆]/g, ' | ').replace(/\s+/g, ' ').trim();
             return escapeHtml(title);
         }
         function getAddedDate(listing) { return listing.publishedAt || listing.createdAt || listing.refreshedAt || '-'; }
+        function getPortalActionLabel(listing) {
+            const portal = String(listing.portal || getPortalName(listing.url)).toLowerCase();
+            return portal === 'otodom' ? 'Przejdź na OTODOM' : portal === 'olx' ? 'Przejdź na OLX' : 'Przejdź do oferty';
+        }
         function getPortalName(value) {
             try {
                 const hostname = new URL(value).hostname.toLowerCase();
@@ -168,6 +252,30 @@
         }
 
         document.querySelector('#refresh').addEventListener('click', () => { currentPage = 1; loadListings(); });
+        function setReviewBuildingType(type, title, button) {
+            reviewBuildingType = reviewBuildingType === type ? null : type;
+            currentPage = 1;
+            const wpButton = document.querySelector('#wp-tab');
+            const ramaButton = document.querySelector('#rama-tab');
+            document.querySelectorAll('.review-tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelector('#page-title').innerHTML = reviewBuildingType
+                ? `FlatHunter<br><em>${title}</em>`
+                : 'FlatHunter<br><em>oferty</em>';
+            wpButton.textContent = reviewBuildingType === 'wielka plyta' ? 'Wróć do ofert' : 'WP do analizy';
+            ramaButton.textContent = reviewBuildingType === 'rama h' ? 'Wróć do ofert' : 'Rama H do analizy';
+            if (reviewBuildingType) button.classList.add('active');
+            loadListings();
+        }
+        document.querySelector('#wp-tab').addEventListener('click', event => setReviewBuildingType('wielka plyta', 'WP', event.currentTarget));
+        document.querySelector('#rama-tab').addEventListener('click', event => setReviewBuildingType('rama h', 'Rama H', event.currentTarget));
+        document.querySelector('#hidden-tab').addEventListener('click', event => {
+            showHidden = !showHidden;
+            currentPage = 1;
+            event.currentTarget.classList.toggle('active', showHidden);
+            event.currentTarget.textContent = showHidden ? 'Wróć do ofert' : 'Ukryte';
+            document.querySelector('#page-title').innerHTML = showHidden ? 'FlatHunter<br><em>ukryte</em>' : 'FlatHunter<br><em>oferty</em>';
+            loadListings();
+        });
         districtElement.addEventListener('change', () => { currentPage = 1; loadListings(); });
         sourceElement.addEventListener('change', () => { currentPage = 1; loadListings(); });
         paginationElement.addEventListener('click', event => {
@@ -178,10 +286,91 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         });
         listingsElement.addEventListener('click', event => {
+            const hiddenButton = event.target.closest('button[data-hidden-id]');
+            if (hiddenButton) {
+                event.preventDefault();
+                event.stopPropagation();
+                updateHidden(hiddenButton.dataset.hiddenId, !showHidden);
+                return;
+            }
+            if (event.target.closest('select[data-manual-id]')) {
+                event.preventDefault();
+                event.stopPropagation();
+                return;
+            }
+            const article = event.target.closest('article[data-primary-url]');
+            if (article && !event.target.closest('a')) {
+                window.open(article.dataset.primaryUrl, '_blank', 'noopener,noreferrer');
+                return;
+            }
             const link = event.target.closest('a[data-listing-url]');
             if (!link) return;
             markVisited(link.dataset.listingUrl);
             link.closest('.portal').classList.add('visited');
+        });
+
+        async function updateHidden(id, hidden) {
+            const response = await fetch(`/api/listings/${id}/hidden`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hidden })
+            });
+            if (response.ok) await loadListings();
+        }
+        listingsElement.addEventListener('change', async event => {
+            const selector = event.target.closest('select[data-manual-id]');
+            if (!selector) return;
+            const previousType = selector.dataset.currentType || '';
+            const nextType = selector.value || '';
+            const nextLabel = nextType === 'wielka plyta' ? 'WP' : nextType === 'rama h' ? 'Rama H' : nextType === 'kamienica' ? 'Kamienica' : 'brak oznaczenia';
+            if (!await askConfirmation(`Czy na pewno oznaczyć tę ofertę jako: ${nextLabel}?`)) {
+                selector.value = previousType;
+                return;
+            }
+            selector.dataset.currentType = nextType;
+            updateManualBuildingType(selector.dataset.manualId, nextType || null);
+        });
+
+        function askConfirmation(message) {
+            return new Promise(resolve => {
+                confirmMessage.textContent = message;
+                confirmModal.hidden = false;
+                confirmSubmit.focus();
+                const finish = result => {
+                    confirmModal.hidden = true;
+                    confirmCancel.removeEventListener('click', cancel);
+                    confirmSubmit.removeEventListener('click', submit);
+                    confirmModal.removeEventListener('click', outside);
+                    document.removeEventListener('keydown', escape);
+                    resolve(result);
+                };
+                const cancel = () => finish(false);
+                const submit = () => finish(true);
+                const outside = event => { if (event.target === confirmModal) cancel(); };
+                const escape = event => { if (event.key === 'Escape') cancel(); };
+                confirmCancel.addEventListener('click', cancel);
+                confirmSubmit.addEventListener('click', submit);
+                confirmModal.addEventListener('click', outside);
+                document.addEventListener('keydown', escape);
+            });
+        }
+
+        async function updateManualBuildingType(id, buildingType) {
+            const response = await fetch(`/api/listings/${id}/building-type`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ buildingType })
+            });
+            if (!response.ok) {
+                statusElement.textContent = 'Nie udało się zapisać oznaczenia.';
+                return;
+            }
+            await loadListings();
+        }
+        listingsElement.addEventListener('keydown', event => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            const article = event.target.closest('article[data-primary-url]');
+            if (!article || event.target.closest('a')) return;
+            event.preventDefault();
+            window.open(article.dataset.primaryUrl, '_blank', 'noopener,noreferrer');
         });
 
         fetch('/api/listings?limit=500').then(response => response.json()).then(data => {

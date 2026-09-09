@@ -7,8 +7,8 @@ const better_sqlite3_1 = __importDefault(require("better-sqlite3"));
 const node_path_1 = __importDefault(require("node:path"));
 class FlatsDatabase {
     db;
-    constructor() {
-        const dbPath = node_path_1.default.join(__dirname, '..', 'data', 'flats.db');
+    constructor(databasePath) {
+        const dbPath = databasePath || node_path_1.default.join(__dirname, '..', 'data', 'flats.db');
         this.db = new better_sqlite3_1.default(dbPath);
         this.init();
     }
@@ -34,10 +34,16 @@ class FlatsDatabase {
                 refreshed_at TEXT,
                 building_type TEXT,
                 has_garage INTEGER,
+                has_parking_space INTEGER,
+                has_storage_unit INTEGER,
+                has_basement INTEGER,
                 has_elevator INTEGER,
                 has_balcony INTEGER,
                 build_year INTEGER,
                 ownership_type TEXT,
+                market_type TEXT,
+                manual_building_type TEXT,
+                hidden INTEGER NOT NULL DEFAULT 0,
                 rent INTEGER,
                 commission TEXT,
                 listing_status TEXT,
@@ -67,10 +73,16 @@ class FlatsDatabase {
             ['refreshed_at', 'TEXT'],
             ['building_type', 'TEXT'],
             ['has_garage', 'INTEGER'],
+            ['has_parking_space', 'INTEGER'],
+            ['has_storage_unit', 'INTEGER'],
+            ['has_basement', 'INTEGER'],
             ['has_elevator', 'INTEGER'],
             ['has_balcony', 'INTEGER'],
             ['build_year', 'INTEGER'],
             ['ownership_type', 'TEXT'],
+            ['market_type', 'TEXT'],
+            ['manual_building_type', 'TEXT'],
+            ['hidden', 'INTEGER NOT NULL DEFAULT 0'],
             ['rent', 'INTEGER'],
             ['commission', 'TEXT'],
             ['listing_status', 'TEXT'],
@@ -112,26 +124,39 @@ class FlatsDatabase {
             INSERT OR IGNORE INTO flats (
                 source, url, title, description, price, area, rooms, address, floor, total_floors,
                 price_per_m2, district, created_at, published_at, refreshed_at, building_type,
-                has_garage, has_elevator, has_balcony, build_year, ownership_type, rent, commission, listing_status
-            ) VALUES (${Array.from({ length: 24 }, () => '?').join(', ')})
-        `).run(flat.source, flat.url, flat.title, flat.description, flat.price, flat.area, flat.rooms, flat.address, flat.floor, flat.totalFloors, flat.pricePerM2, flat.district, flat.createdAt, flat.publishedAt, flat.refreshedAt, flat.buildingType, toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasElevator), toSqlBoolean(flat.hasBalcony), flat.buildYear, flat.ownershipType, flat.rent, flat.commission, flat.listingStatus);
+                has_garage, has_parking_space, has_storage_unit, has_basement, has_elevator, has_balcony, build_year, ownership_type, market_type, rent, commission, listing_status
+            ) VALUES (${Array.from({ length: 28 }, () => '?').join(', ')})
+        `).run(flat.source, flat.url, flat.title, flat.description, flat.price, flat.area, flat.rooms, flat.address, flat.floor, flat.totalFloors, flat.pricePerM2, flat.district, flat.createdAt, flat.publishedAt, flat.refreshedAt, flat.buildingType, toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasParkingSpace ?? null), toSqlBoolean(flat.hasStorageUnit ?? null), toSqlBoolean(flat.hasBasement ?? null), toSqlBoolean(flat.hasElevator), toSqlBoolean(flat.hasBalcony), flat.buildYear, flat.ownershipType, flat.marketType ?? null, flat.rent, flat.commission, flat.listingStatus);
         return result.changes > 0;
     }
     updateFlat(flat) {
         this.db.prepare(`
             UPDATE flats SET
                 source = ?, title = ?, price = ?, area = ?, rooms = ?, address = ?, floor = ?, total_floors = ?, price_per_m2 = ?,
-                district = ?, created_at = ?, published_at = ?, refreshed_at = ?, building_type = COALESCE(?, building_type),
+                district = ?, created_at = ?, published_at = ?, refreshed_at = ?,
+                building_type = COALESCE(manual_building_type, ?),
                 has_garage = COALESCE(?, has_garage), has_elevator = COALESCE(?, has_elevator),
+                has_parking_space = COALESCE(?, has_parking_space), has_storage_unit = COALESCE(?, has_storage_unit),
+                has_basement = COALESCE(?, has_basement),
                 has_balcony = COALESCE(?, has_balcony), build_year = COALESCE(?, build_year),
-                ownership_type = COALESCE(?, ownership_type), rent = COALESCE(?, rent),
+                ownership_type = COALESCE(?, ownership_type), market_type = COALESCE(?, market_type), rent = COALESCE(?, rent),
                 commission = COALESCE(?, commission), listing_status = COALESCE(?, listing_status),
                 last_seen_at = CURRENT_TIMESTAMP
             WHERE url = ?
-        `).run(flat.source, flat.title, flat.price, flat.area, flat.rooms, flat.address, flat.floor, flat.totalFloors, flat.pricePerM2, flat.district, flat.createdAt, flat.publishedAt, flat.refreshedAt, flat.buildingType, toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasElevator), toSqlBoolean(flat.hasBalcony), flat.buildYear, flat.ownershipType, flat.rent, flat.commission, flat.listingStatus, flat.url);
+        `).run(flat.source, flat.title, flat.price, flat.area, flat.rooms, flat.address, flat.floor, flat.totalFloors, flat.pricePerM2, flat.district, flat.createdAt, flat.publishedAt, flat.refreshedAt, flat.buildingType, toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasParkingSpace ?? null), toSqlBoolean(flat.hasStorageUnit ?? null), toSqlBoolean(flat.hasBasement ?? null), toSqlBoolean(flat.hasElevator), toSqlBoolean(flat.hasBalcony), flat.buildYear, flat.ownershipType, flat.marketType ?? null, flat.rent, flat.commission, flat.listingStatus, flat.url);
     }
     getAllFlats() {
         return this.db.prepare('SELECT * FROM flats').all().map(row => this.mapStoredFlat(row));
+    }
+    setManualBuildingType(flatId, buildingType) {
+        this.db.prepare(`
+            UPDATE flats
+            SET manual_building_type = ?, building_type = ?, last_seen_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).run(buildingType, buildingType, flatId);
+    }
+    setHidden(flatId, hidden) {
+        this.db.prepare('UPDATE flats SET hidden = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?').run(hidden ? 1 : 0, flatId);
     }
     assignPropertyGroup(flatId, groupId) {
         this.db.prepare('UPDATE flats SET property_group_id = ? WHERE id = ?').run(groupId, flatId);
@@ -159,10 +184,16 @@ class FlatsDatabase {
             createdAt: row.created_at ?? null,
             publishedAt: row.published_at ?? null,
             refreshedAt: row.refreshed_at ?? null,
-            buildingType: row.building_type ?? null,
-            hasGarage: fromSqlBoolean(row.has_garage), hasElevator: fromSqlBoolean(row.has_elevator),
+            buildingType: row.manual_building_type ?? row.building_type ?? null,
+            hasGarage: fromSqlBoolean(row.has_garage),
+            hasParkingSpace: fromSqlBoolean(row.has_parking_space),
+            hasStorageUnit: fromSqlBoolean(row.has_storage_unit),
+            hasBasement: fromSqlBoolean(row.has_basement),
+            hasElevator: fromSqlBoolean(row.has_elevator),
             hasBalcony: fromSqlBoolean(row.has_balcony), buildYear: row.build_year ?? null,
-            ownershipType: row.ownership_type ?? null, rent: row.rent ?? null,
+            ownershipType: row.ownership_type ?? null,
+            marketType: row.market_type ?? null,
+            hidden: Boolean(row.hidden), rent: row.rent ?? null,
             commission: row.commission ?? null,
             listingStatus: row.listing_status ?? null,
             propertyGroupId: row.property_group_id ?? null,

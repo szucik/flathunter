@@ -12,6 +12,8 @@ export interface Flat {
     floor: number | null;
     totalFloors: number | null;
     ownershipType: string | null;
+    marketType?: string | null;
+    hidden?: boolean;
     rent: number | null;
     commission: string | null;
     listingStatus: string | null;
@@ -20,6 +22,9 @@ export interface Flat {
     createdAt: string | null;
     buildingType: string | null;
     hasGarage: boolean | null;
+    hasParkingSpace?: boolean | null;
+    hasStorageUnit?: boolean | null;
+    hasBasement?: boolean | null;
     hasElevator: boolean | null;
     hasBalcony: boolean | null;
     buildYear: number | null;

@@ -52,18 +52,32 @@ class Parser {
 
         const detailText = $('[data-sentry-component="AdDetailsBase"]').text().toLocaleLowerCase('pl-PL');
         const floor = this.parseFloorValue(details.get('Piętro') || '');
+        const buildingMaterial = details.get('Materiał budynku') || '';
+        const buildingType = details.get('Rodzaj zabudowy') || null;
+        const embeddedMaterial = this.readEmbeddedAttribute(html, 'building_material');
+        const embeddedBuildYear = this.readEmbeddedNumber(html, 'build_year');
+        const embeddedTotalFloors = this.readEmbeddedNumber(html, 'building_floors_num');
+        const detailGarage = this.parseBoolean(details.get('Garaż'));
 
         return {
             description: this.parseDescriptionPage(html),
             area: this.parseNumber(details.get('Powierzchnia') || ''),
             rooms: this.parseNumber(details.get('Liczba pokoi') || ''),
             floor: floor.floor,
-            totalFloors: floor.totalFloors,
+            totalFloors: this.parseNumber(details.get('Liczba pięter') || '') ?? floor.totalFloors ?? embeddedTotalFloors,
             rent: this.parseNumber(details.get('Czynsz') || ''),
             ownershipType: details.get('Forma własności') || null,
-            buildingType: details.get('Rodzaj zabudowy') || null,
-            hasElevator: this.parseBoolean(details.get('Winda')) ?? /winda\s*:?\s*tak/.test(detailText),
-            hasGarage: /garaż|garaz|miejsce parkingowe/.test(detailText) ? true : null,
+            marketType: details.get('Rynek') || null,
+            buildYear: this.parseNumber(details.get('Rok budowy') || '') ?? embeddedBuildYear,
+            buildingType: /wielka płyta|wielkiej płyty|concrete_plate/i.test(`${buildingMaterial} ${embeddedMaterial}`)
+                ? 'wielka plyta'
+                : buildingType,
+            hasElevator: this.parseBoolean(details.get('Winda'))
+                ?? (detailText ? (/winda\s*:?\s*tak/.test(detailText) ? true : null) : null),
+            hasGarage: detailGarage ?? this.parseGarageText(detailText),
+            hasParkingSpace: this.parseParkingText(detailText),
+            hasStorageUnit: /komórka lokatorska|komorka lokatorska/i.test(detailText) ? true : null,
+            hasBasement: /piwnica|pomieszczenie piwniczne/i.test(detailText) ? true : null,
             hasBalcony: /balkon|loggia|taras/.test(detailText) ? true : null
         };
     }
@@ -150,6 +164,32 @@ class Parser {
         if (/^tak$/i.test(value.trim())) return true;
         if (/^nie$/i.test(value.trim())) return false;
         return null;
+    }
+
+    private parseGarageText(text: string): boolean | null {
+        if (/ogólnodostępne miejsca parkingowe|publiczny parking|garaż\s*\/\s*miejsce parkingowe|garaz\s*\/\s*miejsce parkingowe/i.test(text)) {
+            return false;
+        }
+        if (/garaż podziemny|garaz podziemny|miejsce postojowe w garażu|miejsce postojowe w garazu/i.test(text)) {
+            return true;
+        }
+        return null;
+    }
+
+    private parseParkingText(text: string): boolean | null {
+        if (/garaż podziemny|garaz podziemny|miejsce postojowe|miejsce parkingowe|parking podziemny/i.test(text)) return true;
+        if (/bez miejsca postojowego|brak miejsca postojowego|ogólnodostępne miejsca parkingowe|publiczny parking/i.test(text)) return false;
+        return null;
+    }
+
+    private readEmbeddedAttribute(html: string, name: string): string | null {
+        const match = html.match(new RegExp(`"${name}"\\s*:\\s*"([^"]+)"`));
+        return match?.[1] || null;
+    }
+
+    private readEmbeddedNumber(html: string, name: string): number | null {
+        const value = this.readEmbeddedAttribute(html, name);
+        return value ? Number(value) : null;
     }
 
     private parseLocation(locationText: string): Pick<Flat, 'district' | 'createdAt' | 'publishedAt' | 'refreshedAt'> {
