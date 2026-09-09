@@ -123,11 +123,17 @@ class Parser {
     }
 
     private parseImageUrl(card: cheerio.Cheerio<Element>): string | null {
-        const image = card.find('img').first();
-        const srcset = image.attr('srcset')?.split(',')[0]?.trim().split(/\s+/)[0];
-        const candidates = [image.attr('data-src'), image.attr('data-lazy-src'), srcset, image.attr('src')];
-        const source = candidates.find(value => isUsableImageUrl(value));
-        return source ? normalizeImageUrl(source) : null;
+        let imageUrl: string | null = null;
+        card.find('img').each((index) => {
+            if (imageUrl) return;
+            const image = card.find('img').eq(index);
+            const srcset = image.attr('srcset')?.split(',')[0]?.trim().split(/\s+/)[0];
+            const candidates = [image.attr('data-src'), image.attr('data-lazy-src'), srcset, image.attr('src')];
+            const source = candidates.find(value => isUsableImageUrl(value));
+            if (source) imageUrl = normalizeImageUrl(source);
+        });
+
+        return imageUrl;
     }
 
     private parsePrice(priceText: string): number | null {
