@@ -50,12 +50,18 @@ async function main() {
         let filteredCount = 0;
         for (const flat of flats) {
             const analyzedFlat = analyzer.analyze(flat);
-            if (!(0, listing_filters_1.matchesConfiguredFilters)(analyzedFlat)) {
+            const matchesFilters = (0, listing_filters_1.matchesConfiguredFilters)(analyzedFlat);
+            const uncertain = !matchesFilters && (0, listing_filters_1.isUncertainListing)(analyzedFlat);
+            if (!matchesFilters && !uncertain) {
                 filteredCount++;
                 continue;
             }
             db.updateFlat(analyzedFlat);
             const inserted = db.insertFlat(analyzedFlat);
+            if (uncertain) {
+                filteredCount++;
+                continue;
+            }
             if (inserted) {
                 const savedFlat = db.getFlatByUrl(analyzedFlat.url);
                 if (savedFlat) {

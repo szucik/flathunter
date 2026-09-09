@@ -5,7 +5,7 @@ import ListingAnalyzer from './listing-analyzer';
 import PropertyMatcher from './property-matcher';
 import type { Flat, ListingSource } from './types';
 import TelegramNotifier from './telegram-notifier';
-import { matchesConfiguredFilters } from './listing-filters';
+import { isUncertainListing, matchesConfiguredFilters } from './listing-filters';
 
 async function main(): Promise<void> {
     console.log('OLX Scraper - Start');
@@ -51,13 +51,19 @@ async function main(): Promise<void> {
 
         for (const flat of flats) {
             const analyzedFlat = analyzer.analyze(flat);
-            if (!matchesConfiguredFilters(analyzedFlat)) {
+            const matchesFilters = matchesConfiguredFilters(analyzedFlat);
+            const uncertain = !matchesFilters && isUncertainListing(analyzedFlat);
+            if (!matchesFilters && !uncertain) {
                 filteredCount++;
                 continue;
             }
 
             db.updateFlat(analyzedFlat);
             const inserted = db.insertFlat(analyzedFlat);
+            if (uncertain) {
+                filteredCount++;
+                continue;
+            }
 
             if (inserted) {
                 const savedFlat = db.getFlatByUrl(analyzedFlat.url);
