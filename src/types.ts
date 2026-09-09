@@ -1,6 +1,7 @@
 export interface Flat {
     source: string;
     url: string;
+    imageUrl: string | null;
     title: string;
     description: string | null;
     price: number | null;

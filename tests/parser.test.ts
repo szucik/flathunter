@@ -30,6 +30,11 @@ test('parses abbreviated room count', () => {
     assert.equal(parseTitle('Ustawne 3pok na Bielanach'), 3);
 });
 
+test('extracts the first listing image', () => {
+    const html = `<div data-cy="l-card"><a data-testid="card-title-link" href="/d/oferta/test"><h4>Mieszkanie</h4></a><img src="https://images.example/flat.jpg"></div>`;
+    assert.equal(parser.parseListingPage(html)[0]?.imageUrl, 'https://images.example/flat.jpg');
+});
+
 test('parses Otodom detail fields', () => {
     const html = readFileSync('patterns/view-otodom.html', 'utf8');
     const flat = parser.parseDetailPage(html);

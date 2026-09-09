@@ -19,6 +19,7 @@ class FlatsDatabase {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 source TEXT NOT NULL DEFAULT 'unknown',
                 url TEXT UNIQUE NOT NULL,
+                image_url TEXT,
                 title TEXT NOT NULL,
                 description TEXT,
                 price INTEGER,
@@ -65,6 +66,7 @@ class FlatsDatabase {
         const existingColumns = new Set(columns.map(column => column.name));
         const missingColumns: Array<[string, string]> = [
             ['source', "TEXT NOT NULL DEFAULT 'unknown'"],
+            ['image_url', 'TEXT'],
             ['description', 'TEXT'],
             ['rooms', 'INTEGER'],
             ['address', 'TEXT'],
@@ -128,12 +130,12 @@ class FlatsDatabase {
     insertFlat(flat: Flat): boolean {
         const result = this.db.prepare(`
             INSERT OR IGNORE INTO flats (
-                source, url, title, description, price, area, rooms, address, floor, total_floors,
+                source, url, image_url, title, description, price, area, rooms, address, floor, total_floors,
                 price_per_m2, district, created_at, published_at, refreshed_at, building_type,
                 has_garage, has_parking_space, has_storage_unit, has_basement, has_elevator, has_balcony, build_year, ownership_type, market_type, rent, commission, listing_status
-            ) VALUES (${Array.from({ length: 28 }, () => '?').join(', ')})
+            ) VALUES (${Array.from({ length: 29 }, () => '?').join(', ')})
         `).run(
-            flat.source, flat.url, flat.title, flat.description, flat.price, flat.area, flat.rooms,
+            flat.source, flat.url, flat.imageUrl, flat.title, flat.description, flat.price, flat.area, flat.rooms,
             flat.address, flat.floor, flat.totalFloors, flat.pricePerM2, flat.district, flat.createdAt,
             flat.publishedAt, flat.refreshedAt, flat.buildingType,
             toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasParkingSpace ?? null), toSqlBoolean(flat.hasStorageUnit ?? null),
@@ -148,7 +150,7 @@ class FlatsDatabase {
     updateFlat(flat: Flat): void {
         this.db.prepare(`
             UPDATE flats SET
-                source = ?, title = ?, price = ?, area = ?, rooms = ?, address = ?, floor = ?, total_floors = ?, price_per_m2 = ?,
+                source = ?, image_url = COALESCE(?, image_url), title = ?, price = ?, area = ?, rooms = ?, address = ?, floor = ?, total_floors = ?, price_per_m2 = ?,
                 district = ?, created_at = ?, published_at = ?, refreshed_at = ?,
                 building_type = COALESCE(manual_building_type, ?),
                 has_garage = COALESCE(?, has_garage), has_elevator = COALESCE(?, has_elevator),
@@ -160,7 +162,7 @@ class FlatsDatabase {
                 last_seen_at = CURRENT_TIMESTAMP
             WHERE url = ?
         `).run(
-            flat.source, flat.title, flat.price, flat.area, flat.rooms, flat.address, flat.floor,
+            flat.source, flat.imageUrl, flat.title, flat.price, flat.area, flat.rooms, flat.address, flat.floor,
             flat.totalFloors, flat.pricePerM2, flat.district, flat.createdAt, flat.publishedAt,
             flat.refreshedAt, flat.buildingType, toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasParkingSpace ?? null),
             toSqlBoolean(flat.hasStorageUnit ?? null), toSqlBoolean(flat.hasBasement ?? null), toSqlBoolean(flat.hasElevator),
@@ -206,7 +208,7 @@ class FlatsDatabase {
 
     private mapStoredFlat(row: Record<string, unknown>): StoredFlat {
         return {
-            id: Number(row.id), source: String(row.source), url: String(row.url), title: String(row.title),
+            id: Number(row.id), source: String(row.source), url: String(row.url), imageUrl: (row.image_url as string | null) ?? null, title: String(row.title),
             description: (row.description as string | null) ?? null, price: (row.price as number | null) ?? null,
             area: (row.area as number | null) ?? null, rooms: (row.rooms as number | null) ?? null,
             address: (row.address as string | null) ?? null, floor: (row.floor as number | null) ?? null,

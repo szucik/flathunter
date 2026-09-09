@@ -88,6 +88,7 @@ class Parser {
         if (!url) return null;
 
         const fullUrl = this.normalizeListingUrl(url.startsWith('http') ? url : `https://www.olx.pl${url}`);
+        const imageUrl = this.parseImageUrl(card);
         const title = card.find('a[data-testid="card-title-link"] h4').text().trim();
         const price = this.parsePrice(card.find('[data-testid="ad-price"]').text().trim());
         const paramsText = card.find('[data-testid="blueprint-card-param-icon"]').parent().text().trim();
@@ -97,6 +98,7 @@ class Parser {
         return {
             source: 'unknown',
             url: fullUrl,
+            imageUrl,
             title,
             description: null,
             price,
@@ -116,6 +118,15 @@ class Parser {
             hasBalcony: null,
             buildYear: null
         };
+    }
+
+    private parseImageUrl(card: cheerio.Cheerio<Element>): string | null {
+        const image = card.find('img').first();
+        const source = image.attr('src') || image.attr('data-src') || image.attr('data-lazy-src');
+        if (source) return source;
+
+        const srcset = image.attr('srcset');
+        return srcset?.split(',')[0]?.trim().split(/\s+/)[0] || null;
     }
 
     private parsePrice(priceText: string): number | null {

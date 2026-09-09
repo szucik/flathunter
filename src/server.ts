@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import 'dotenv/config';
 import FlatsDatabase from './database';
+import type { StoredFlat } from './types';
 
 const port = Number(process.env.API_PORT || 3000);
 const publicDirectory = path.join(__dirname, '..', 'public');
@@ -105,10 +106,10 @@ async function sendListings(requestUrl: URL, response: ServerResponse): Promise<
         const pageSize = parsePageSize(requestUrl.searchParams.get('pageSize') || requestUrl.searchParams.get('limit'));
         const filteredListings = db.getAllFlats()
             .filter(flat => Boolean(flat.hidden) === showHidden)
-            .filter(flat => !isExcludedDistrict(flat.district))
+            .filter(flat => matchesConfiguredFilters(flat, reviewBuildingType, includeExcludedBuildingTypes))
             .filter(flat => reviewBuildingType
                 ? normalizeValue(flat.buildingType || '') === normalizeValue(reviewBuildingType)
-                : includeExcludedBuildingTypes || !isExcludedBuildingType(flat.buildingType))
+                : true)
             .filter(flat => !district || flat.district === district)
             .filter(flat => !portal || getPortalName(flat.url) === portal)
             .map(flat => ({ ...flat, description: cleanDescription(flat.description), portal: getPortalName(flat.url) }));
@@ -133,10 +134,10 @@ async function sendProperties(requestUrl: URL, response: ServerResponse): Promis
         const pageSize = parsePageSize(requestUrl.searchParams.get('pageSize') || requestUrl.searchParams.get('limit'));
         const listings = db.getAllFlats()
             .filter(flat => Boolean(flat.hidden) === showHidden)
-            .filter(flat => !isExcludedDistrict(flat.district))
+            .filter(flat => matchesConfiguredFilters(flat, reviewBuildingType, includeExcludedBuildingTypes))
             .filter(flat => reviewBuildingType
                 ? normalizeValue(flat.buildingType || '') === normalizeValue(reviewBuildingType)
-                : includeExcludedBuildingTypes || !isExcludedBuildingType(flat.buildingType))
+                : true)
             .filter(flat => !district || flat.district === district)
             .filter(flat => !portal || getPortalName(flat.url) === portal)
             .map(flat => ({ ...flat, description: cleanDescription(flat.description), portal: getPortalName(flat.url) }));
@@ -199,6 +200,50 @@ function isExcludedBuildingType(value: string | null): boolean {
     return value !== null && excluded.includes(normalizeValue(value));
 }
 
+function matchesConfiguredFilters(flat: StoredFlat, reviewBuildingType: string | null, includeExcludedBuildingTypes: boolean): boolean {
+    if (isExcludedDistrict(flat.district)) return false;
+
+    const allowedDistricts = parseList(process.env.ALLOWED_DISTRICTS);
+    if (allowedDistricts.length > 0 && (!flat.district || !allowedDistricts.some(district => sameNormalizedValue(district, flat.district as string)))) {
+        return false;
+    }
+
+    if (!reviewBuildingType && !includeExcludedBuildingTypes && isExcludedBuildingType(flat.buildingType)) return false;
+
+    const minPrice = parseConfiguredNumber(process.env.MIN_PRICE, 0);
+    const maxPrice = parseConfiguredNumber(process.env.MAX_PRICE, Number.MAX_SAFE_INTEGER);
+    if (flat.price !== null && (flat.price < minPrice || flat.price > maxPrice)) return false;
+
+    const minArea = parseConfiguredNumber(process.env.MIN_AREA, 0);
+    if (flat.area !== null && flat.area < minArea) return false;
+
+    if (process.env.REQUIRE_ELEVATOR !== 'false' && flat.hasElevator !== true) return false;
+    if (process.env.REQUIRE_GARAGE !== 'false' && !hasRequiredParking(flat)) return false;
+    if (process.env.REQUIRE_BALCONY !== 'false' && flat.hasBalcony !== true) return false;
+
+    return true;
+}
+
+function parseList(value: string | undefined): string[] {
+    return (value || '').split(',').map(item => item.trim()).filter(Boolean);
+}
+
+function sameNormalizedValue(left: string, right: string): boolean {
+    return normalizeValue(left) === normalizeValue(right);
+}
+
+function parseConfiguredNumber(value: string | undefined, fallback: number): number {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function hasRequiredParking(flat: StoredFlat): boolean {
+    if (flat.hasGarage === true) return true;
+    const currentYear = new Date().getFullYear();
+    const modernBuilding = flat.buildYear !== null && flat.buildYear >= currentYear - 20;
+    return modernBuilding && flat.hasParkingSpace === true;
+}
+
 function normalizeValue(value: string): string {
     return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('pl-PL');
 }
@@ -231,7 +276,7 @@ const server = createServer((request, response) => {
     void requestHandler(request, response);
 });
 
-server.listen(port, () => {
+server.listen(port, '0.0.0.0', () => {
     console.log(`FlatHunter API: http://localhost:${port}`);
     console.log(`Listings endpoint: http://localhost:${port}/api/listings`);
 });
