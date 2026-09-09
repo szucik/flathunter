@@ -56,6 +56,7 @@ class FlatsDatabase {
             )
         `);
         this.addMissingColumnsForExistingDatabase();
+        this.db.exec("UPDATE flats SET image_url = NULL WHERE image_url LIKE '%no_thumbnail%' OR image_url LIKE '/app/%'");
         this.normalizeStoredUrls();
         this.db.exec('CREATE INDEX IF NOT EXISTS idx_district ON flats(district)');
         this.db.exec('CREATE INDEX IF NOT EXISTS idx_price ON flats(price)');

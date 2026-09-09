@@ -124,11 +124,10 @@ class Parser {
 
     private parseImageUrl(card: cheerio.Cheerio<Element>): string | null {
         const image = card.find('img').first();
-        const source = image.attr('src') || image.attr('data-src') || image.attr('data-lazy-src');
-        if (source) return source;
-
-        const srcset = image.attr('srcset');
-        return srcset?.split(',')[0]?.trim().split(/\s+/)[0] || null;
+        const srcset = image.attr('srcset')?.split(',')[0]?.trim().split(/\s+/)[0];
+        const candidates = [image.attr('data-src'), image.attr('data-lazy-src'), srcset, image.attr('src')];
+        const source = candidates.find(value => isUsableImageUrl(value));
+        return source ? normalizeImageUrl(source) : null;
     }
 
     private parsePrice(priceText: string): number | null {
@@ -216,6 +215,14 @@ class Parser {
             refreshedAt: datePart && /odświeżono|odswiezono/i.test(datePart) ? datePart : null
         };
     }
+}
+
+function isUsableImageUrl(value: string | undefined): value is string {
+    return Boolean(value && /^https?:\/\//i.test(value) && !/no_thumbnail|placeholder/i.test(value));
+}
+
+function normalizeImageUrl(value: string): string {
+    return value.startsWith('//') ? `https:${value}` : value;
 }
 
 function isPollutedDescription(value: string): boolean {
