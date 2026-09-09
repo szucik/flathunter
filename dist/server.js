@@ -41,12 +41,16 @@ async function sendListings(requestUrl, response) {
     try {
         const district = requestUrl.searchParams.get('district');
         const source = requestUrl.searchParams.get('source');
-        const limit = Math.min(Math.max(Number(requestUrl.searchParams.get('limit') || 100), 1), 500);
-        const listings = db.getAllFlats()
+        const portal = requestUrl.searchParams.get('portal') || source;
+        const page = parsePage(requestUrl.searchParams.get('page'));
+        const pageSize = parsePageSize(requestUrl.searchParams.get('pageSize') || requestUrl.searchParams.get('limit'));
+        const filteredListings = db.getAllFlats()
+            .filter(flat => !isExcludedDistrict(flat.district))
             .filter(flat => !district || flat.district === district)
-            .filter(flat => !source || flat.source === source)
-            .slice(0, limit);
-        sendJson(response, 200, { count: listings.length, listings });
+            .filter(flat => !portal || getPortalName(flat.url) === portal)
+            .map(flat => ({ ...flat, description: cleanDescription(flat.description), portal: getPortalName(flat.url) }));
+        const listings = filteredListings.slice((page - 1) * pageSize, page * pageSize);
+        sendJson(response, 200, { count: listings.length, total: filteredListings.length, page, pageSize, listings });
     }
     finally {
         db.close();
@@ -57,10 +61,14 @@ async function sendProperties(requestUrl, response) {
     try {
         const district = requestUrl.searchParams.get('district');
         const source = requestUrl.searchParams.get('source');
-        const limit = Math.min(Math.max(Number(requestUrl.searchParams.get('limit') || 100), 1), 500);
+        const portal = requestUrl.searchParams.get('portal') || source;
+        const page = parsePage(requestUrl.searchParams.get('page'));
+        const pageSize = parsePageSize(requestUrl.searchParams.get('pageSize') || requestUrl.searchParams.get('limit'));
         const listings = db.getAllFlats()
+            .filter(flat => !isExcludedDistrict(flat.district))
             .filter(flat => !district || flat.district === district)
-            .filter(flat => !source || flat.source === source);
+            .filter(flat => !portal || getPortalName(flat.url) === portal)
+            .map(flat => ({ ...flat, description: cleanDescription(flat.description), portal: getPortalName(flat.url) }));
         const groups = new Map();
         for (const listing of listings) {
             const key = listing.propertyGroupId === null ? `listing:${listing.id}` : `group:${listing.propertyGroupId}`;
@@ -68,20 +76,56 @@ async function sendProperties(requestUrl, response) {
             group.push(listing);
             groups.set(key, group);
         }
-        const properties = [...groups.values()]
+        const allProperties = [...groups.values()]
             .map(group => ({
             id: group[0].propertyGroupId ?? group[0].id,
             listings: group,
             lowestPrice: Math.min(...group.map(listing => listing.price ?? Number.MAX_SAFE_INTEGER)),
-            sources: [...new Set(group.map(listing => listing.source))]
+            sources: [...new Set(group.map(listing => listing.portal))]
         }))
-            .sort((left, right) => right.listings[0].lastSeenAt.localeCompare(left.listings[0].lastSeenAt))
-            .slice(0, limit);
-        sendJson(response, 200, { count: properties.length, properties });
+            .sort((left, right) => right.listings[0].lastSeenAt.localeCompare(left.listings[0].lastSeenAt));
+        const properties = allProperties.slice((page - 1) * pageSize, page * pageSize);
+        sendJson(response, 200, { count: properties.length, total: allProperties.length, page, pageSize, properties });
     }
     finally {
         db.close();
     }
+}
+function getPortalName(value) {
+    try {
+        const hostname = new URL(value).hostname.toLowerCase();
+        if (hostname.includes('otodom'))
+            return 'otodom';
+        if (hostname.includes('olx'))
+            return 'olx';
+    }
+    catch {
+        return 'inne';
+    }
+    return 'inne';
+}
+function cleanDescription(value) {
+    if (!value || /\.css-[\w-]+\s*\{|--font(?:Size|Family|Weight)|line-height:\s*var\(/i.test(value)) {
+        return null;
+    }
+    return value;
+}
+function isExcludedDistrict(value) {
+    const excluded = (process.env.EXCLUDED_DISTRICTS || 'Ursus,Białołęka,Wawer')
+        .split(',')
+        .map(item => normalizeValue(item));
+    return value !== null && excluded.includes(normalizeValue(value));
+}
+function normalizeValue(value) {
+    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('pl-PL');
+}
+function parsePage(value) {
+    const page = Number(value || 1);
+    return Number.isInteger(page) && page > 0 ? page : 1;
+}
+function parsePageSize(value) {
+    const pageSize = Number(value || 20);
+    return Number.isInteger(pageSize) && pageSize > 0 ? Math.min(pageSize, 100) : 20;
 }
 async function sendFile(response, fileName, contentType) {
     const content = await (0, promises_1.readFile)(node_path_1.default.join(publicDirectory, fileName));

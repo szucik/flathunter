@@ -113,7 +113,7 @@ class FlatsDatabase {
                 source, url, title, description, price, area, rooms, address, floor, total_floors,
                 price_per_m2, district, created_at, published_at, refreshed_at, building_type,
                 has_garage, has_elevator, has_balcony, build_year, ownership_type, rent, commission, listing_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (${Array.from({ length: 24 }, () => '?').join(', ')})
         `).run(flat.source, flat.url, flat.title, flat.description, flat.price, flat.area, flat.rooms, flat.address, flat.floor, flat.totalFloors, flat.pricePerM2, flat.district, flat.createdAt, flat.publishedAt, flat.refreshedAt, flat.buildingType, toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasElevator), toSqlBoolean(flat.hasBalcony), flat.buildYear, flat.ownershipType, flat.rent, flat.commission, flat.listingStatus);
         return result.changes > 0;
     }

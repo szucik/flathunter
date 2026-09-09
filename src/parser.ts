@@ -23,16 +23,49 @@ class Parser {
         const $ = cheerio.load(html);
         const selectors = [
             '[data-cy="ad_description"]',
+            '[data-cy="adPageAdDescription"]',
             '[data-testid="ad_description"]',
             '[data-testid="description"]'
         ];
 
         for (const selector of selectors) {
-            const description = $(selector).first().text().trim();
+            const descriptionElement = $(selector).first().clone();
+            descriptionElement.find('script, style, noscript').remove();
+            const description = descriptionElement.text().trim();
+            if (isPollutedDescription(description)) continue;
             if (description) return description;
         }
 
         return null;
+    }
+
+    parseDetailPage(html: string): Partial<Flat> {
+        const $ = cheerio.load(html);
+        const details = new Map<string, string>();
+
+        $('[data-sentry-element="ItemGridContainer"]').each((_index, element) => {
+            const items = $(element).children('div');
+            const label = items.eq(0).text().replace(':', '').trim();
+            const value = items.eq(1).text().trim();
+            if (label && value) details.set(label, value);
+        });
+
+        const detailText = $('[data-sentry-component="AdDetailsBase"]').text().toLocaleLowerCase('pl-PL');
+        const floor = this.parseFloorValue(details.get('Piętro') || '');
+
+        return {
+            description: this.parseDescriptionPage(html),
+            area: this.parseNumber(details.get('Powierzchnia') || ''),
+            rooms: this.parseNumber(details.get('Liczba pokoi') || ''),
+            floor: floor.floor,
+            totalFloors: floor.totalFloors,
+            rent: this.parseNumber(details.get('Czynsz') || ''),
+            ownershipType: details.get('Forma własności') || null,
+            buildingType: details.get('Rodzaj zabudowy') || null,
+            hasElevator: this.parseBoolean(details.get('Winda')) ?? /winda\s*:?\s*tak/.test(detailText),
+            hasGarage: /garaż|garaz|miejsce parkingowe/.test(detailText) ? true : null,
+            hasBalcony: /balkon|loggia|taras/.test(detailText) ? true : null
+        };
     }
 
     private parseCard($: cheerio.CheerioAPI, element: Element): Flat | null {
@@ -94,9 +127,29 @@ class Parser {
     }
 
     private parseRooms(text: string): number | null {
-        const match = text.match(/(\d{1,2})\s*(?:pokoje?|pok[óo]j)/i)
+        const match = text.match(/(\d{1,2})\s*-?\s*pok(?:[óo]j(?:e|i|owy|owe|ów)?|\.?)?(?![a-z])/i)
             || text.match(/(?:pokoje?|pok[óo]j|pomieszczenia)\s*[:\-]\s*(\d{1,2})/i);
         return match ? Number(match[1]) : null;
+    }
+
+    private parseFloorValue(value: string): { floor: number | null; totalFloors: number | null } {
+        const match = value.match(/(\d+)\s*\/\s*(\d+)/);
+        return {
+            floor: match ? Number(match[1]) : null,
+            totalFloors: match ? Number(match[2]) : null
+        };
+    }
+
+    private parseNumber(value: string): number | null {
+        const match = value.match(/[\d\s]+(?:[,\.]\d+)?/);
+        return match ? Number(match[0].replace(/\s/g, '').replace(',', '.')) : null;
+    }
+
+    private parseBoolean(value: string | undefined): boolean | null {
+        if (!value) return null;
+        if (/^tak$/i.test(value.trim())) return true;
+        if (/^nie$/i.test(value.trim())) return false;
+        return null;
     }
 
     private parseLocation(locationText: string): Pick<Flat, 'district' | 'createdAt' | 'publishedAt' | 'refreshedAt'> {
@@ -110,6 +163,10 @@ class Parser {
             refreshedAt: datePart && /odświeżono|odswiezono/i.test(datePart) ? datePart : null
         };
     }
+}
+
+function isPollutedDescription(value: string): boolean {
+    return /\.css-[\w-]+\s*\{|--font(?:Size|Family|Weight)|line-height:\s*var\(/i.test(value);
 }
 
 function getErrorMessage(error: unknown): string {

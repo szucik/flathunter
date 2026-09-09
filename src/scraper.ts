@@ -31,8 +31,8 @@ class OlxScraper implements ListingSource {
                 allFlats.push(...newFlats);
                 console.log(`Znaleziono ${newFlats.length} unikalnych ogloszen na stronie ${pageNum}`);
 
-                for (const flat of newFlats.filter(item => !knownUrls.has(item.url))) {
-                    flat.description = await this.fetchDescription(page, flat.url);
+                for (const flat of newFlats) {
+                    Object.assign(flat, await this.fetchDetails(page, flat.url));
                 }
 
                 if (pageNum < maxPages) {
@@ -50,13 +50,17 @@ class OlxScraper implements ListingSource {
         }
     }
 
-    private async fetchDescription(page: import('playwright').Page, url: string): Promise<string | null> {
+    private async fetchDetails(page: import('playwright').Page, url: string): Promise<Partial<Flat>> {
         try {
             await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-            return this.parser.parseDescriptionPage(await page.content());
+            await page.waitForSelector(
+                '[data-sentry-component="AdDetailsBase"], [data-cy="ad_description"], [data-cy="adPageAdDescription"], [data-testid="ad_description"]',
+                { timeout: 15000 }
+            );
+            return this.parser.parseDetailPage(await page.content());
         } catch (error) {
             console.warn(`Nie udalo sie pobrac opisu ${url}:`, getErrorMessage(error));
-            return null;
+            return {};
         }
     }
 

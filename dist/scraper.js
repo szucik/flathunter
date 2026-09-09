@@ -29,8 +29,8 @@ class OlxScraper {
                     .filter(flat => !allFlats.some(existing => existing.url === flat.url));
                 allFlats.push(...newFlats);
                 console.log(`Znaleziono ${newFlats.length} unikalnych ogloszen na stronie ${pageNum}`);
-                for (const flat of newFlats.filter(item => !knownUrls.has(item.url))) {
-                    flat.description = await this.fetchDescription(page, flat.url);
+                for (const flat of newFlats) {
+                    Object.assign(flat, await this.fetchDetails(page, flat.url));
                 }
                 if (pageNum < maxPages) {
                     await this.randomDelay(parseInt(process.env.REQUEST_DELAY || '2000', 10));
@@ -47,14 +47,15 @@ class OlxScraper {
             await this.browser.close();
         }
     }
-    async fetchDescription(page, url) {
+    async fetchDetails(page, url) {
         try {
             await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-            return this.parser.parseDescriptionPage(await page.content());
+            await page.waitForSelector('[data-sentry-component="AdDetailsBase"], [data-cy="ad_description"], [data-cy="adPageAdDescription"], [data-testid="ad_description"]', { timeout: 15000 });
+            return this.parser.parseDetailPage(await page.content());
         }
         catch (error) {
             console.warn(`Nie udalo sie pobrac opisu ${url}:`, getErrorMessage(error));
-            return null;
+            return {};
         }
     }
     async randomDelay(baseDelay) {
