@@ -28,6 +28,7 @@ function flat(overrides: Partial<Flat>): Flat {
         createdAt: null,
         buildingType: 'blok',
         hasGarage: null,
+        hasParkingSpace: null,
         hasElevator: true,
         hasBalcony: null,
         buildYear: 1985,
@@ -45,6 +46,33 @@ test('classifies an old block without garage as likely large-panel construction'
 
 test('does not classify an old block with confirmed garage as large-panel construction', () => {
     assert.equal(analyzer.analyze(flat({ totalFloors: 11, hasGarage: true })).buildingType, 'blok');
+});
+
+test('classifies an old block with parking outside the building as large-panel construction', () => {
+    const analyzed = analyzer.analyze(flat({
+        description: 'Budynek z 1985 roku, 10 pięter, miejsce postojowe przed budynkiem.',
+        buildingType: 'blok',
+        buildYear: 1985,
+        totalFloors: 10,
+        hasGarage: null,
+        hasParkingSpace: null
+    }));
+
+    assert.equal(analyzed.hasGarage, false);
+    assert.equal(analyzed.hasParkingSpace, null);
+    assert.equal(analyzed.buildingType, 'wielka plyta');
+});
+
+test('uses mid-1950s construction year as a large-panel signal', () => {
+    const analyzed = analyzer.analyze(flat({
+        description: 'Budynek z 1958 roku, 5 pięter, piwnica.',
+        buildingType: 'blok',
+        buildYear: 1958,
+        totalFloors: 5,
+        hasGarage: null
+    }));
+
+    assert.equal(analyzed.buildingType, 'wielka plyta');
 });
 
 test('classifies a Rama H building separately from large-panel construction', () => {
@@ -78,6 +106,15 @@ test('does not treat public parking as a private garage', () => {
     }));
 
     assert.equal(analyzed.hasGarage, false);
+});
+
+test('recognizes parking spaces included in the price as private', () => {
+    const analyzed = analyzer.analyze(flat({
+        description: '109,04 m², 5 pokoi, 2 balkony i 2 miejsca postojowe w cenie. Rynek pierwotny, rok budowy 2026.',
+        hasParkingSpace: null
+    }));
+
+    assert.equal(analyzed.hasParkingSpace, true);
 });
 
 test('classifies a high-rise from the 1970s with ambiguous parking as large-panel', () => {

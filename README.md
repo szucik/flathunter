@@ -58,7 +58,8 @@ Then edit `.env`:
 TARGET_URL=https://www.olx.pl/nieruchomosci/mieszkania/sprzedaz/warszawa/
 
 # Optional application-level filters
-ALLOWED_DISTRICTS=Bemowo,Ochota,Targówek,Bielany,Mokotów
+# Leave ALLOWED_DISTRICTS empty to accept every district except EXCLUDED_DISTRICTS.
+ALLOWED_DISTRICTS=
 EXCLUDED_DISTRICTS=Ursus,Białołęka,Wawer
 EXCLUDED_BUILDING_TYPES=wielka plyta
 MIN_PRICE=700000
@@ -71,8 +72,8 @@ MAX_PAGES=3
 REQUEST_DELAY=2000
 MAX_AGE_DAYS=7
 REQUIRE_ELEVATOR=true
-REQUIRE_GARAGE=false
-REQUIRE_BALCONY=false
+REQUIRE_GARAGE=true
+REQUIRE_BALCONY=true
 
 # Optional Telegram notifications for new listings
 TELEGRAM_TOKEN=
@@ -84,7 +85,7 @@ TELEGRAM_CHAT_ID=
 | Variable | Required | Description | Default |
 |---|---:|---|---:|
 | `TARGET_URL` | Yes | OLX search results URL | none |
-| `ALLOWED_DISTRICTS` | No | Comma-separated list of accepted districts | all |
+| `ALLOWED_DISTRICTS` | No | Comma-separated allowlist. Leave empty to accept any district that is not in `EXCLUDED_DISTRICTS` | empty (no allowlist) |
 | `EXCLUDED_DISTRICTS` | No | Comma-separated list of rejected districts | `Ursus,Białołęka,Wawer` |
 | `EXCLUDED_BUILDING_TYPES` | No | Comma-separated list of rejected building types | `wielka plyta` |
 | `MIN_PRICE` | No | Minimum price in PLN | `0` |
@@ -95,8 +96,10 @@ TELEGRAM_CHAT_ID=
 | `REQUEST_DELAY` | No | Base delay between pages in milliseconds | `2000` |
 | `MAX_AGE_DAYS` | No | Maximum age of a listing, measured from the OLX displayed date | `7` |
 | `REQUIRE_ELEVATOR` | No | Keep only listings where an elevator is explicitly detected | `true` |
-| `REQUIRE_GARAGE` | No | Keep only listings where a garage or parking place is explicitly detected | `false` |
-| `REQUIRE_BALCONY` | No | Keep only listings where a balcony, loggia, or terrace is explicitly detected | `false` |
+| `REQUIRE_GARAGE` | No | Require a building garage, or a confirmed private assigned parking place in a building younger than 20 years | `true` |
+| `REQUIRE_BALCONY` | No | Keep only listings where a balcony, loggia, terrace, or garden is explicitly detected | `true` |
+
+Any of the three `REQUIRE_*` switches can be set to `false` to stop treating that feature as a hard requirement.
 | `TELEGRAM_TOKEN` | No | Bot token from BotFather | empty |
 | `TELEGRAM_CHAT_ID` | No | Target chat or user ID | empty |
 
@@ -149,12 +152,25 @@ The dashboard is available at `http://localhost:3000`. The API exposes JSON that
 
 ```text
 GET /api/health
+GET /api/scrape-status
 GET /api/listings?limit=100
+GET /api/listings?uncertain=true
+GET /api/listings?rejected=true
 GET /api/properties?limit=100
 GET /api/properties?district=Mokotów&source=olx
 ```
 
 `/api/listings` returns individual portal listings. `/api/properties` returns the aggregated view: probable cross-portal duplicates are grouped together, while each original listing and its price remain available inside the group.
+
+By default both endpoints return listings that pass every configured filter. Add `uncertain=true` for listings saved for manual review (missing data only), or `rejected=true` for listings that failed a hard requirement. Each listing carries either `rejectionReason` or `uncertaintyReason`, a specific, human-readable explanation naming the actual value found (or missing) in the ad, not a generic label.
+
+`/api/scrape-status` returns the most recent scraping run recorded in the database:
+
+```json
+{"latestRun":{"id":12,"source":"olx","status":"completed","startedAt":"...","completedAt":"...","listingsFound":122,"errorMessage":null}}
+```
+
+The dashboard polls this endpoint and shows the real start or completion time of the last run, so the displayed status always reflects the database rather than the browser's clock.
 
 ### Telegram notifications
 

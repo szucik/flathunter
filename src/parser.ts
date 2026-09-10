@@ -81,7 +81,7 @@ class Parser {
             hasStorageUnit: /komórka lokatorska|komorka lokatorska/i.test(detailText) ? true : null,
             hasBasement: /piwnica|pomieszczenie piwniczne/i.test(detailText) ? true : null,
             hasBalcony: /balkon|loggia|taras/.test(detailText) ? true : null
-            ,hasGarden: /ogródek|ogrodek/.test(detailText) ? true : null
+            ,hasGarden: /ogródek|ogrodek/.test(detailText) && !/bez ogródka|brak ogródka|bez ogrodka|brak ogrodka/.test(detailText) ? true : null
         };
     }
 
@@ -197,7 +197,7 @@ class Parser {
     }
 
     private parseParkingText(text: string): boolean | null {
-        if (/garaż podziemny|garaz podziemny|miejsce postojowe|miejsce parkingowe|parking podziemny/i.test(text)) return true;
+        if (/przypisane miejsce postojowe|prywatne miejsce postojowe|własne miejsce postojowe|miejsce postojowe na wyłączność|miejsce postojowe nr|miejsce parkingowe na wyłączność/i.test(text)) return true;
         if (/bez miejsca postojowego|brak miejsca postojowego|ogólnodostępne miejsca parkingowe|publiczny parking/i.test(text)) return false;
         return null;
     }
