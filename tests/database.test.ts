@@ -57,3 +57,24 @@ test('persists hidden status and restores the listing', () => {
         rmSync(directory, { recursive: true, force: true });
     }
 });
+
+test('records the latest completed scraping run', () => {
+    const directory = mkdtempSync(path.join(os.tmpdir(), 'flathunter-test-'));
+    const database = new FlatsDatabase(path.join(directory, 'flats.db'));
+
+    try {
+        const runId = database.startScrapeRun('olx');
+        database.completeScrapeRun(runId, 42);
+        const latestRun = database.getLatestScrapeRun();
+
+        assert.ok(latestRun);
+        assert.equal(latestRun.id, runId);
+        assert.equal(latestRun.source, 'olx');
+        assert.equal(latestRun.status, 'completed');
+        assert.equal(latestRun.listingsFound, 42);
+        assert.ok(latestRun.completedAt);
+    } finally {
+        database.close();
+        rmSync(directory, { recursive: true, force: true });
+    }
+});

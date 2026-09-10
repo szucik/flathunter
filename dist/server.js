@@ -22,6 +22,10 @@ async function requestHandler(request, response) {
             await sendProperties(requestUrl, response);
             return;
         }
+        if (requestUrl.pathname === '/api/scrape-status') {
+            sendScrapeStatus(response);
+            return;
+        }
         if (requestUrl.pathname === '/api/health') {
             sendJson(response, 200, { ok: true });
             return;
@@ -79,6 +83,15 @@ async function updateHidden(id, request, response) {
         db.close();
     }
 }
+function sendScrapeStatus(response) {
+    const db = new database_1.default();
+    try {
+        sendJson(response, 200, { latestRun: db.getLatestScrapeRun() });
+    }
+    finally {
+        db.close();
+    }
+}
 function readRequestBody(request) {
     return new Promise((resolve, reject) => {
         let body = '';
@@ -98,13 +111,16 @@ async function sendListings(requestUrl, response) {
         const reviewBuildingType = requestUrl.searchParams.get('reviewBuildingType');
         const showHidden = requestUrl.searchParams.get('showHidden') === 'true';
         const showUncertain = requestUrl.searchParams.get('uncertain') === 'true';
+        const showRejected = requestUrl.searchParams.get('rejected') === 'true';
         const page = parsePage(requestUrl.searchParams.get('page'));
         const pageSize = parsePageSize(requestUrl.searchParams.get('pageSize') || requestUrl.searchParams.get('limit'));
         const filteredListings = db.getAllFlats()
             .filter(flat => Boolean(flat.hidden) === showHidden)
-            .filter(flat => showUncertain
-            ? (0, listing_filters_1.isUncertainListing)(flat)
-            : (0, listing_filters_1.matchesConfiguredFilters)(flat, reviewBuildingType, includeExcludedBuildingTypes))
+            .filter(flat => showRejected
+            ? Boolean(flat.rejectionReason)
+            : showUncertain
+                ? (0, listing_filters_1.isUncertainListing)(flat)
+                : (0, listing_filters_1.matchesConfiguredFilters)(flat, reviewBuildingType, includeExcludedBuildingTypes))
             .filter(flat => reviewBuildingType
             ? normalizeValue(flat.buildingType || '') === normalizeValue(reviewBuildingType)
             : true)
@@ -128,13 +144,16 @@ async function sendProperties(requestUrl, response) {
         const reviewBuildingType = requestUrl.searchParams.get('reviewBuildingType');
         const showHidden = requestUrl.searchParams.get('showHidden') === 'true';
         const showUncertain = requestUrl.searchParams.get('uncertain') === 'true';
+        const showRejected = requestUrl.searchParams.get('rejected') === 'true';
         const page = parsePage(requestUrl.searchParams.get('page'));
         const pageSize = parsePageSize(requestUrl.searchParams.get('pageSize') || requestUrl.searchParams.get('limit'));
         const listings = db.getAllFlats()
             .filter(flat => Boolean(flat.hidden) === showHidden)
-            .filter(flat => showUncertain
-            ? (0, listing_filters_1.isUncertainListing)(flat)
-            : (0, listing_filters_1.matchesConfiguredFilters)(flat, reviewBuildingType, includeExcludedBuildingTypes))
+            .filter(flat => showRejected
+            ? Boolean(flat.rejectionReason)
+            : showUncertain
+                ? (0, listing_filters_1.isUncertainListing)(flat)
+                : (0, listing_filters_1.matchesConfiguredFilters)(flat, reviewBuildingType, includeExcludedBuildingTypes))
             .filter(flat => reviewBuildingType
             ? normalizeValue(flat.buildingType || '') === normalizeValue(reviewBuildingType)
             : true)

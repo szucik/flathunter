@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Flat } from '../src/types';
-import { isUncertainListing, matchesConfiguredFilters } from '../src/listing-filters';
+import { getRejectionReasons, getUncertaintyReasons, isUncertainListing, matchesConfiguredFilters } from '../src/listing-filters';
 
 const originalEnvironment = { ...process.env };
 
@@ -76,6 +76,40 @@ test('rejects a listing outside the allowed districts despite similar spelling',
     assert.equal(matchesConfiguredFilters(makeFlat({ district: 'Śródmieście' })), false);
 });
 
+test('accepts a district outside the allowlist when only excluded districts are configured', () => {
+    Object.assign(process.env, {
+        ALLOWED_DISTRICTS: '',
+        EXCLUDED_DISTRICTS: 'Ursus, Białołęka, Wawer',
+        EXCLUDED_BUILDING_TYPES: '',
+        MIN_PRICE: '700000',
+        MAX_PRICE: '1200000',
+        MIN_AREA: '55',
+        REQUIRE_ELEVATOR: 'true',
+        REQUIRE_GARAGE: 'true',
+        REQUIRE_BALCONY: 'true'
+    });
+
+    assert.equal(matchesConfiguredFilters(makeFlat({ district: 'Wola' })), true);
+});
+
+test('reports one specific district reason without duplicating the rejection rule', () => {
+    Object.assign(process.env, {
+        ALLOWED_DISTRICTS: 'Bemowo, Targówek',
+        EXCLUDED_DISTRICTS: 'Ursus, Białołęka',
+        EXCLUDED_BUILDING_TYPES: '',
+        MIN_PRICE: '700000',
+        MAX_PRICE: '1200000',
+        MIN_AREA: '55',
+        REQUIRE_ELEVATOR: 'false',
+        REQUIRE_GARAGE: 'false',
+        REQUIRE_BALCONY: 'false'
+    });
+
+    assert.deepEqual(getRejectionReasons(makeFlat({ district: 'Ursus' })), [
+        'dzielnica „Ursus” jest wykluczona (Ursus, Białołęka)'
+    ]);
+});
+
 test('accepts a listing that satisfies all configured filters', () => {
     Object.assign(process.env, {
         ALLOWED_DISTRICTS: 'Bemowo, Targówek',
@@ -108,6 +142,19 @@ test('marks a listing with unknown required features as uncertain', () => {
     assert.equal(isUncertainListing(makeFlat({ hasElevator: null })), true);
 });
 
+test('reports the exact missing data that makes a listing uncertain', () => {
+    Object.assign(process.env, {
+        ALLOWED_DISTRICTS: '', EXCLUDED_DISTRICTS: '', EXCLUDED_BUILDING_TYPES: '',
+        MIN_PRICE: '700000', MAX_PRICE: '1200000', MIN_AREA: '55', REQUIRE_ELEVATOR: 'true',
+        REQUIRE_GARAGE: 'true', REQUIRE_BALCONY: 'true'
+    });
+
+    assert.deepEqual(getUncertaintyReasons(makeFlat({ hasElevator: null, hasGarage: null, hasParkingSpace: null })), [
+        'winda: brak danych w ogłoszeniu',
+        'garaż: brak danych w ogłoszeniu; prywatne miejsce: brak danych w ogłoszeniu'
+    ]);
+});
+
 test('does not mark an offer outside price range as uncertain', () => {
     Object.assign(process.env, {
         ALLOWED_DISTRICTS: 'Bemowo, Targówek',
@@ -132,4 +179,24 @@ test('accepts a ground-floor listing with a garden as outdoor space', () => {
     });
 
     assert.equal(matchesConfiguredFilters(makeFlat({ hasBalcony: false, hasGarden: true })), true);
+});
+
+test('accepts private parking for a building younger than twenty years', () => {
+    Object.assign(process.env, {
+        ALLOWED_DISTRICTS: 'Bemowo, Targówek', EXCLUDED_DISTRICTS: '', EXCLUDED_BUILDING_TYPES: '',
+        MIN_PRICE: '700000', MAX_PRICE: '1200000', MIN_AREA: '55', REQUIRE_ELEVATOR: 'true',
+        REQUIRE_GARAGE: 'true', REQUIRE_BALCONY: 'true'
+    });
+
+    assert.equal(matchesConfiguredFilters(makeFlat({ buildYear: new Date().getFullYear() - 19, hasGarage: false, hasParkingSpace: true })), true);
+});
+
+test('rejects private parking alone for a building twenty years old or older', () => {
+    Object.assign(process.env, {
+        ALLOWED_DISTRICTS: 'Bemowo, Targówek', EXCLUDED_DISTRICTS: '', EXCLUDED_BUILDING_TYPES: '',
+        MIN_PRICE: '700000', MAX_PRICE: '1200000', MIN_AREA: '55', REQUIRE_ELEVATOR: 'true',
+        REQUIRE_GARAGE: 'true', REQUIRE_BALCONY: 'true'
+    });
+
+    assert.equal(matchesConfiguredFilters(makeFlat({ buildYear: new Date().getFullYear() - 20, hasGarage: false, hasParkingSpace: true })), false);
 });

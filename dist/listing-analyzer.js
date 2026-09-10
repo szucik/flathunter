@@ -9,18 +9,20 @@ class ListingAnalyzer {
             floor: this.matchFloor(text) ?? flat.floor,
             totalFloors: this.matchTotalFloors(text) ?? flat.totalFloors,
             ownershipType: this.matchOwnership(text) || flat.ownershipType,
+            area: flat.area ?? this.matchArea(text),
             rent: this.matchMoney(text, /(?:czynsz|opłata administracyjna|oplaty administracyjne)[^\d]{0,20}([\d\s]+)\s*zł/),
             commission: this.matchCommission(text) || flat.commission,
             listingStatus: this.matchStatus(text) || flat.listingStatus,
             buildingType: this.matchBuildingType(text, flat),
-            hasGarage: this.matchPresence(text, [/garaż/, /garaz/, /miejsce postojowe/, /miejsce parkingowe/, /parking podziemny/], [/bez garażu/, /brak garażu/, /bez miejsca postojowego/, /ogólnodostępne miejsca parkingowe/, /publiczny parking/,
+            hasGarage: this.matchPresence(text, [/garaż podziemny/, /garaz podziemny/, /garaż w budynku/, /garaz w budynku/, /garaż murowany/, /garaz murowany/], [/bez garażu/, /brak garażu/, /bez miejsca postojowego/, /miejsce postojowe[^.\n]{0,30}(?:przed|poza|obok) budynkiem/, /miejsce parkingowe[^.\n]{0,30}(?:przed|poza|obok) budynkiem/, /ogólnodostępne miejsca parkingowe/, /publiczny parking/,
                 /garaż\s*\/\s*miejsce parkingowe/, /garaz\s*\/\s*miejsce parkingowe/,
                 /garaż\s*(?:lub|albo)\s*miejsce parkingowe/, /garaz\s*(?:lub|albo)\s*miejsce parkingowe/]) ?? flat.hasGarage,
-            hasParkingSpace: this.matchPresence(text, [/miejsce postojowe/, /miejsce parkingowe/, /parking podziemny/], [/brak miejsca postojowego/, /ogólnodostępne miejsca parkingowe/, /publiczny parking/]) ?? flat.hasParkingSpace,
+            hasParkingSpace: this.matchPresence(text, [/przypisane miejsce postojowe/, /prywatne miejsce postojowe/, /własne miejsce postojowe/, /miejsce postojowe na wyłączność/, /miejsce postojowe nr/, /miejsce parkingowe na wyłączność/, /\b\d+\s+miejsc(?:e|a)?\s+postojow(?:e|ych)\b[^.\n]{0,60}\b(?:w cenie|wliczon)/], [/brak miejsca postojowego/, /ogólnodostępne miejsca parkingowe/, /publiczny parking/]) ?? flat.hasParkingSpace,
             hasStorageUnit: this.matchPresence(text, [/komórka lokatorska/, /komorka lokatorska/], []) ?? flat.hasStorageUnit,
             hasBasement: this.matchPresence(text, [/piwnica/, /pomieszczenie piwniczne/], [/bez piwnicy/, /brak piwnicy/]) ?? flat.hasBasement,
             hasElevator: this.matchPresence(text, [/winda/, /windą/], [/bez windy/, /brak windy/, /bez dźwigu/]) ?? flat.hasElevator,
-            hasBalcony: this.matchPresence(text, [/balkon/, /loggia/, /taras/], [/bez balkonu/, /brak balkonu/]) ?? flat.hasBalcony,
+            hasBalcony: this.matchPresence(text, [/balkon/, /loggia/, /taras/], [/bez balkonu/, /brak balkonu/, /bez loggii/, /brak loggii/, /bez tarasu/, /brak tarasu/]) ?? flat.hasBalcony,
+            hasGarden: this.matchPresence(text, [/ogródek/, /ogrodek/, /prywatny ogród/, /prywatny ogrod/], [/bez ogródka/, /bez ogrodka/, /brak ogródka/, /brak ogrodka/]) ?? flat.hasGarden,
             buildYear: this.matchBuildYear(text) ?? flat.buildYear
         };
     }
@@ -53,6 +55,10 @@ class ListingAnalyzer {
     matchMoney(text, pattern) {
         const match = text.match(pattern);
         return match ? Number(match[1].replace(/\s/g, '')) : null;
+    }
+    matchArea(text) {
+        const match = text.match(/(?:powierzchnia|metraż|metraz)?[^\d]{0,12}(\d{2,3}(?:[,.]\d+)?)\s*(?:m²|m2|m\.?\s*kw)/i);
+        return match ? Number(match[1].replace(',', '.')) : null;
     }
     matchCommission(text) {
         const match = text.match(/(?:prowizja|wynagrodzenie agencji)[^.!\n]{0,40}/i);
@@ -98,15 +104,15 @@ class ListingAnalyzer {
         const normalizedText = normalizeSearchText(text);
         if (/rama\s*-?\s*h\b|z ramy\s*-?\s*h\b/.test(normalizedText))
             return false;
-        if (flat.hasGarage === true)
-            return false;
         let score = 0;
-        const oldConstruction = flat.buildYear !== null && flat.buildYear >= 1960 && flat.buildYear <= 1993;
+        const oldConstruction = flat.buildYear !== null && flat.buildYear >= 1955 && flat.buildYear <= 1993;
         const block = flat.buildingType !== null && /blok|block/i.test(flat.buildingType);
         const typicalFloorCount = flat.totalFloors !== null
             && ([4, 5, 10, 11].includes(flat.totalFloors) || flat.totalFloors >= 10);
         if (oldConstruction)
             score += 30;
+        if (flat.hasGarage === true)
+            score -= 35;
         if (block)
             score += 10;
         if (typicalFloorCount)
@@ -148,7 +154,7 @@ class ListingAnalyzer {
         const block = flat.buildingType !== null && /blok|block/i.test(flat.buildingType);
         const structuralSignal = /konstrukcja szkieletowa|szkielet żelbetowy|szkielet zelbetowy|ściany działowe|sciany dzialowe|możliwość wyburzenia ścian|mozliwosc wyburzenia scian|wszystkie ściany działowe|wszystkie sciany dzialowe/i.test(text);
         const infillMaterial = /\bcegł[ayę]|\bpustak\b/i.test(text);
-        const hasGarage = flat.hasGarage === true || /garaż podziemny|garaz podziemny|miejsce postojowe/i.test(text);
+        const hasGarage = flat.hasGarage === true || /garaż podziemny|garaz podziemny|garaż w budynku|garaz w budynku/i.test(text);
         let score = 0;
         if (oldConstruction)
             score += 25;
