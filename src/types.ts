@@ -17,6 +17,7 @@ export interface Flat {
     ownershipType: string | null;
     marketType?: string | null;
     hidden?: boolean;
+    manualAccept?: boolean;
     rent: number | null;
     commission: string | null;
     listingStatus: string | null;

@@ -40,6 +40,11 @@ async function requestHandler(request, response) {
             await updateHidden(Number(hiddenMatch[1]), request, response);
             return;
         }
+        const manualAcceptMatch = requestUrl.pathname.match(/^\/api\/listings\/(\d+)\/manual-accept$/);
+        if (manualAcceptMatch && request.method === 'POST') {
+            await updateManualAccept(Number(manualAcceptMatch[1]), request, response);
+            return;
+        }
         if (requestUrl.pathname === '/' || requestUrl.pathname === '/index.html') {
             await sendFile(response, 'index.html', 'text/html; charset=utf-8');
             return;
@@ -83,6 +88,21 @@ async function updateHidden(id, request, response) {
         db.close();
     }
 }
+async function updateManualAccept(id, request, response) {
+    const payload = JSON.parse(await readRequestBody(request));
+    if (typeof payload.accepted !== 'boolean') {
+        sendJson(response, 400, { error: 'accepted must be boolean' });
+        return;
+    }
+    const db = new database_1.default();
+    try {
+        db.setManualAccept(id, payload.accepted);
+        sendJson(response, 200, { ok: true, id, accepted: payload.accepted });
+    }
+    finally {
+        db.close();
+    }
+}
 function sendScrapeStatus(response) {
     const db = new database_1.default();
     try {
@@ -117,10 +137,10 @@ async function sendListings(requestUrl, response) {
         const filteredListings = db.getAllFlats()
             .filter(flat => Boolean(flat.hidden) === showHidden)
             .filter(flat => showRejected
-            ? Boolean(flat.rejectionReason)
+            ? Boolean(flat.rejectionReason) && !flat.manualAccept
             : showUncertain
-                ? (0, listing_filters_1.isUncertainListing)(flat)
-                : (0, listing_filters_1.matchesConfiguredFilters)(flat, reviewBuildingType, includeExcludedBuildingTypes))
+                ? (0, listing_filters_1.isUncertainListing)(flat) && !flat.manualAccept
+                : ((0, listing_filters_1.matchesConfiguredFilters)(flat, reviewBuildingType, includeExcludedBuildingTypes) || (!reviewBuildingType && Boolean(flat.manualAccept))))
             .filter(flat => reviewBuildingType
             ? normalizeValue(flat.buildingType || '') === normalizeValue(reviewBuildingType)
             : true)
@@ -150,10 +170,10 @@ async function sendProperties(requestUrl, response) {
         const listings = db.getAllFlats()
             .filter(flat => Boolean(flat.hidden) === showHidden)
             .filter(flat => showRejected
-            ? Boolean(flat.rejectionReason)
+            ? Boolean(flat.rejectionReason) && !flat.manualAccept
             : showUncertain
-                ? (0, listing_filters_1.isUncertainListing)(flat)
-                : (0, listing_filters_1.matchesConfiguredFilters)(flat, reviewBuildingType, includeExcludedBuildingTypes))
+                ? (0, listing_filters_1.isUncertainListing)(flat) && !flat.manualAccept
+                : ((0, listing_filters_1.matchesConfiguredFilters)(flat, reviewBuildingType, includeExcludedBuildingTypes) || (!reviewBuildingType && Boolean(flat.manualAccept))))
             .filter(flat => reviewBuildingType
             ? normalizeValue(flat.buildingType || '') === normalizeValue(reviewBuildingType)
             : true)

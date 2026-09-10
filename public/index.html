@@ -38,6 +38,7 @@
         .facts strong { display: block; margin-top: 2px; color: var(--ink); font-size: .88rem; line-height: 1.25; overflow-wrap: anywhere; }
         .description { grid-column: 1 / -1; margin: 4px 0 0; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; line-height: 1.6; }
         .rejection-reason { margin-top: 8px; color: var(--price); font: 700 .78rem/1.35 sans-serif; }
+        .manual-accept-badge { margin-top: 8px; color: var(--accent); font: 700 .78rem/1.35 sans-serif; }
         article a { color: var(--ink); font-family: sans-serif; font-weight: 700; text-decoration: none; }
         .sources { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 14px; font: 700 .75rem/1.2 sans-serif; text-transform: uppercase; }
         .source { padding: 5px 7px; border: 1px solid var(--line); border-radius: 3px; }
@@ -53,6 +54,7 @@
         .manual-actions { margin-top: 12px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
         .manual-actions select { min-height: 30px; width: auto; max-width: 100%; padding: 0 8px; color: var(--muted); font: .7rem/1 sans-serif; border-radius: 999px; }
         .hidden-action { margin-left: 0; min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--muted); font: .7rem/1 sans-serif; }
+        .manual-accept-action { margin-left: 0; min-height: 30px; padding: 0 10px; border: 1px solid var(--accent); border-radius: 999px; background: transparent; color: var(--accent); font: .7rem/1 sans-serif; }
         .confirm-modal[hidden] { display: none; }
         .confirm-modal { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; background: rgba(24, 33, 38, .32); }
         .confirm-dialog { width: min(100%, 390px); padding: 24px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: 0 18px 60px rgba(24, 33, 38, .2); }
@@ -98,7 +100,6 @@
             .toolbar #wp-tab { grid-column: 2; margin-left: 0; }
             .toolbar #rama-tab { grid-column: 1 / -1; margin-left: 0; }
             #status { margin: 16px 0 12px; font-size: .9rem; }
-            #scrape-status { margin: 0 0 12px; color: var(--muted); font-size: .85rem; }
             article { padding: 18px; }
             .listing-image { top: 18px; left: 18px; }
             article h2 { font-size: 1.05rem; line-height: 1.3; }
@@ -129,11 +130,9 @@
             <button id="wp-tab" class="review-tab" type="button">WP do analizy</button>
             <button id="rama-tab" class="review-tab" type="button">Rama H do analizy</button>
             <button id="uncertain-tab" class="review-tab" type="button">Niepewne</button>
-            <button id="rejected-tab" class="review-tab" type="button">Odrzucone</button>
             <button id="hidden-tab" class="review-tab" type="button">Ukryte</button>
         </div>
         <div id="status">Ładowanie...</div>
-        <div id="scrape-status" aria-live="polite"></div>
         <section id="listings" class="grid"></section>
         <nav id="pagination" class="pagination" aria-label="Paginacja ofert"></nav>
     </main>
@@ -150,7 +149,6 @@
     <script>
         const listingsElement = document.querySelector('#listings');
         const statusElement = document.querySelector('#status');
-        const scrapeStatusElement = document.querySelector('#scrape-status');
         const districtElement = document.querySelector('#district');
         const sourceElement = document.querySelector('#source');
         const paginationElement = document.querySelector('#pagination');
@@ -163,7 +161,6 @@
         let reviewBuildingType = null;
         let showHidden = false;
         let showUncertain = false;
-        let showRejected = false;
 
         async function loadListings() {
             statusElement.textContent = 'Ładowanie ofert...';
@@ -171,7 +168,6 @@
             if (reviewBuildingType) params.set('reviewBuildingType', reviewBuildingType);
             if (showHidden) params.set('showHidden', 'true');
             if (showUncertain) params.set('uncertain', 'true');
-            if (showRejected) params.set('rejected', 'true');
             if (districtElement.value) params.set('district', districtElement.value);
             if (sourceElement.value) params.set('portal', sourceElement.value);
             const response = await fetch(`/api/properties?${params}`);
@@ -179,29 +175,6 @@
             renderProperties(data.properties);
             statusElement.firstChild.textContent = `${data.total} nieruchomości, strona ${data.page} z ${Math.max(1, Math.ceil(data.total / data.pageSize))} `;
             renderPagination(data);
-            loadScrapeStatus();
-        }
-
-        async function loadScrapeStatus() {
-            try {
-                const response = await fetch('/api/scrape-status');
-                const { latestRun } = await response.json();
-                if (!latestRun) {
-                    scrapeStatusElement.textContent = 'Scraper nie został jeszcze uruchomiony.';
-                    return;
-                }
-
-                const date = new Date(latestRun.completedAt || latestRun.startedAt).toLocaleString('pl-PL');
-                if (latestRun.status === 'completed') {
-                    scrapeStatusElement.textContent = `Ostatnie scrapowanie: ${date}. Pobrano ${latestRun.listingsFound} ofert.`;
-                } else if (latestRun.status === 'running') {
-                    scrapeStatusElement.textContent = `Scrapowanie w toku, rozpoczęte: ${date}.`;
-                } else {
-                    scrapeStatusElement.textContent = `Ostatnie scrapowanie zakończyło się błędem: ${date}. ${latestRun.errorMessage || ''}`;
-                }
-            } catch {
-                scrapeStatusElement.textContent = 'Nie udało się odczytać statusu scrapowania.';
-            }
         }
 
         function renderProperties(properties) {
@@ -213,6 +186,7 @@
                     <div class="listing-summary">
                         <h2>${formatTitle(main.title)}</h2>
                         ${main.rejectionReason || main.uncertaintyReason ? `<div class="rejection-reason">Powód: ${escapeHtml(main.rejectionReason || main.uncertaintyReason)}</div>` : ''}
+                        ${main.manualAccept ? '<div class="manual-accept-badge">Zatwierdzona ręcznie</div>' : ''}
                         <div class="manual-actions">
                             <select data-manual-id="${main.id}" data-current-type="${escapeAttribute(main.buildingType || '')}" aria-label="Oznacz jako">
                                 <option value="" ${!['wielka plyta', 'rama h', 'kamienica'].includes(main.buildingType) ? 'selected' : ''}>Oznacz jako</option>
@@ -221,6 +195,7 @@
                                 <option value="kamienica" ${main.buildingType === 'kamienica' ? 'selected' : ''}>Kamienica</option>
                             </select>
                             <button type="button" class="hidden-action" data-hidden-id="${main.id}">${main.hidden ? 'Przywróć' : 'Ukryj'}</button>
+                            <button type="button" class="manual-accept-action" data-manual-accept-id="${main.id}">${main.manualAccept ? 'Cofnij zatwierdzenie' : 'Przenieś do ofert'}</button>
                         </div>
                         <div class="price">od ${formatNumber(property.lowestPrice)} zł</div>
                     </div>
@@ -310,9 +285,7 @@
             const ramaButton = document.querySelector('#rama-tab');
             document.querySelectorAll('.review-tab').forEach(tab => tab.classList.remove('active'));
             showUncertain = false;
-            showRejected = false;
             document.querySelector('#uncertain-tab').textContent = 'Niepewne';
-            document.querySelector('#rejected-tab').textContent = 'Odrzucone';
             document.querySelector('#page-title').innerHTML = reviewBuildingType
                 ? `<a href="/">FlatHunter<br><em>${title}</em></a>`
                 : '<a href="/">FlatHunter<br><em>oferty</em></a>';
@@ -327,39 +300,20 @@
             showUncertain = !showUncertain;
             reviewBuildingType = null;
             showHidden = false;
-            showRejected = false;
             currentPage = 1;
             document.querySelectorAll('.review-tab').forEach(tab => tab.classList.remove('active'));
             event.currentTarget.classList.toggle('active', showUncertain);
             event.currentTarget.textContent = showUncertain ? 'Wróć do ofert' : 'Niepewne';
-            document.querySelector('#rejected-tab').classList.remove('active');
-            document.querySelector('#rejected-tab').textContent = 'Odrzucone';
             document.querySelector('#page-title').innerHTML = showUncertain ? '<a href="/">FlatHunter<br><em>niepewne</em></a>' : '<a href="/">FlatHunter<br><em>oferty</em></a>';
-            loadListings();
-        });
-        document.querySelector('#rejected-tab').addEventListener('click', event => {
-            showRejected = !showRejected;
-            reviewBuildingType = null;
-            showHidden = false;
-            showUncertain = false;
-            currentPage = 1;
-            document.querySelectorAll('.review-tab').forEach(tab => tab.classList.remove('active'));
-            event.currentTarget.classList.toggle('active', showRejected);
-            event.currentTarget.textContent = showRejected ? 'Wróć do ofert' : 'Odrzucone';
-            document.querySelector('#uncertain-tab').textContent = 'Niepewne';
-            document.querySelector('#page-title').innerHTML = showRejected ? '<a href="/">FlatHunter<br><em>odrzucone</em></a>' : '<a href="/">FlatHunter<br><em>oferty</em></a>';
             loadListings();
         });
         document.querySelector('#hidden-tab').addEventListener('click', event => {
             showHidden = !showHidden;
             showUncertain = false;
-            showRejected = false;
             reviewBuildingType = null;
             currentPage = 1;
             document.querySelector('#uncertain-tab').classList.remove('active');
             document.querySelector('#uncertain-tab').textContent = 'Niepewne';
-            document.querySelector('#rejected-tab').classList.remove('active');
-            document.querySelector('#rejected-tab').textContent = 'Odrzucone';
             event.currentTarget.classList.toggle('active', showHidden);
             event.currentTarget.textContent = showHidden ? 'Wróć do ofert' : 'Ukryte';
             document.querySelector('#page-title').innerHTML = showHidden ? '<a href="/">FlatHunter<br><em>ukryte</em></a>' : '<a href="/">FlatHunter<br><em>oferty</em></a>';
@@ -382,6 +336,14 @@
                 updateHidden(hiddenButton.dataset.hiddenId, !showHidden);
                 return;
             }
+            const manualAcceptButton = event.target.closest('button[data-manual-accept-id]');
+            if (manualAcceptButton) {
+                event.preventDefault();
+                event.stopPropagation();
+                const alreadyAccepted = manualAcceptButton.textContent.trim() === 'Cofnij zatwierdzenie';
+                updateManualAccept(manualAcceptButton.dataset.manualAcceptId, !alreadyAccepted);
+                return;
+            }
             if (event.target.closest('select[data-manual-id]')) {
                 event.preventDefault();
                 event.stopPropagation();
@@ -401,6 +363,13 @@
         async function updateHidden(id, hidden) {
             const response = await fetch(`/api/listings/${id}/hidden`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hidden })
+            });
+            if (response.ok) await loadListings();
+        }
+
+        async function updateManualAccept(id, accepted) {
+            const response = await fetch(`/api/listings/${id}/manual-accept`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accepted })
             });
             if (response.ok) await loadListings();
         }

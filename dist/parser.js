@@ -87,8 +87,10 @@ class Parser {
         const embeddedBuildYear = this.readEmbeddedNumber(html, 'build_year');
         const embeddedTotalFloors = this.readEmbeddedNumber(html, 'building_floors_num');
         const detailGarage = this.parseBoolean(details.get('Garaż'));
+        const ogImage = $('meta[property="og:image"]').attr('content');
         return {
             description: this.parseDescriptionPage(html),
+            imageUrl: isUsableImageUrl(ogImage) ? normalizeImageUrl(ogImage) : null,
             area: this.parseNumber(details.get('Powierzchnia') || ''),
             rooms: this.parseNumber(details.get('Liczba pokoi') || ''),
             floor: floor.floor,

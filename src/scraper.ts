@@ -32,7 +32,8 @@ class OlxScraper implements ListingSource {
                 console.log(`Znaleziono ${newFlats.length} unikalnych ogloszen na stronie ${pageNum}`);
 
                 for (const flat of newFlats) {
-                    Object.assign(flat, await this.fetchDetails(page, flat.url));
+                    const details = await this.fetchDetails(page, flat.url);
+                    Object.assign(flat, details, { imageUrl: flat.imageUrl ?? details.imageUrl ?? null });
                 }
 
                 if (pageNum < maxPages) {
@@ -53,6 +54,7 @@ class OlxScraper implements ListingSource {
     private async fetchDetails(page: import('playwright').Page, url: string): Promise<Partial<Flat>> {
         try {
             await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+            await this.dismissCookieConsent(page);
             await page.waitForSelector(
                 '[data-sentry-component="AdDetailsBase"], [data-cy="ad_description"], [data-cy="adPageAdDescription"], [data-testid="ad_description"]',
                 { timeout: 15000 }
@@ -61,6 +63,16 @@ class OlxScraper implements ListingSource {
         } catch (error) {
             console.warn(`Nie udalo sie pobrac opisu ${url}:`, getErrorMessage(error));
             return {};
+        }
+    }
+
+    // Otodom/OLX pokazują baner CMP, który przesłania treść i blokuje waitForSelector.
+    private async dismissCookieConsent(page: import('playwright').Page): Promise<void> {
+        const consentButton = page.getByRole('button', { name: 'Akceptuj wszystkie' });
+        try {
+            await consentButton.click({ timeout: 3000 });
+        } catch {
+            // Baner nie pojawił się lub już został zamknięty - nic do zrobienia.
         }
     }
 

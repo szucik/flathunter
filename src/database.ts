@@ -25,17 +25,6 @@ class FlatsDatabase {
     private init(): void {
         this.db.exec('CREATE TABLE IF NOT EXISTS property_groups (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
         this.db.exec(`
-            CREATE TABLE IF NOT EXISTS scrape_runs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                source TEXT NOT NULL,
-                status TEXT NOT NULL,
-                started_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-                completed_at TEXT,
-                listings_found INTEGER,
-                error_message TEXT
-            )
-        `);
-        this.db.exec(`
             CREATE TABLE IF NOT EXISTS flats (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 source TEXT NOT NULL DEFAULT 'unknown',
@@ -69,6 +58,7 @@ class FlatsDatabase {
                 market_type TEXT,
                 manual_building_type TEXT,
                 hidden INTEGER NOT NULL DEFAULT 0,
+                manual_accept INTEGER NOT NULL DEFAULT 0,
                 rent INTEGER,
                 commission TEXT,
                 listing_status TEXT,
@@ -78,6 +68,15 @@ class FlatsDatabase {
                 scraped_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         `);
+        this.db.exec(`CREATE TABLE IF NOT EXISTS scrape_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL,
+            status TEXT NOT NULL,
+            started_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            completed_at TEXT,
+            listings_found INTEGER,
+            error_message TEXT
+        )`);
         this.addMissingColumnsForExistingDatabase();
         this.db.exec("UPDATE flats SET image_url = NULL WHERE image_url LIKE '%no_thumbnail%' OR image_url LIKE '/app/%'");
         this.normalizeStoredUrls();
@@ -114,6 +113,7 @@ class FlatsDatabase {
             ['market_type', 'TEXT'],
             ['manual_building_type', 'TEXT'],
             ['hidden', 'INTEGER NOT NULL DEFAULT 0'],
+            ['manual_accept', 'INTEGER NOT NULL DEFAULT 0'],
             ['rent', 'INTEGER'],
             ['commission', 'TEXT'],
             ['listing_status', 'TEXT'],
@@ -204,6 +204,29 @@ class FlatsDatabase {
         return this.db.prepare('SELECT * FROM flats').all().map(row => this.mapStoredFlat(row as Record<string, unknown>));
     }
 
+    startScrapeRun(source: string): number {
+        const result = this.db.prepare("INSERT INTO scrape_runs (source, status) VALUES (?, 'running')").run(source);
+        return Number(result.lastInsertRowid);
+    }
+
+    completeScrapeRun(runId: number, listingsFound: number): void {
+        this.updateScrapeRun(runId, 'completed', listingsFound, null);
+    }
+
+    failScrapeRun(runId: number, errorMessage: string): void {
+        this.updateScrapeRun(runId, 'failed', null, errorMessage);
+    }
+
+    getLatestScrapeRun(): ScrapeRun | null {
+        const row = this.db.prepare('SELECT * FROM scrape_runs ORDER BY id DESC LIMIT 1').get() as Record<string, unknown> | undefined;
+        if (!row) return null;
+        return { id: Number(row.id), source: String(row.source), status: row.status as ScrapeRun['status'], startedAt: String(row.started_at), completedAt: (row.completed_at as string | null) ?? null, listingsFound: (row.listings_found as number | null) ?? null, errorMessage: (row.error_message as string | null) ?? null };
+    }
+
+    private updateScrapeRun(runId: number, status: ScrapeRun['status'], listingsFound: number | null, errorMessage: string | null): void {
+        this.db.prepare("UPDATE scrape_runs SET status = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), listings_found = ?, error_message = ? WHERE id = ?").run(status, listingsFound, errorMessage, runId);
+    }
+
     setManualBuildingType(flatId: number, buildingType: string | null): void {
         this.db.prepare(`
             UPDATE flats
@@ -216,10 +239,13 @@ class FlatsDatabase {
         this.db.prepare('UPDATE flats SET hidden = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?').run(hidden ? 1 : 0, flatId);
     }
 
+    setManualAccept(flatId: number, accepted: boolean): void {
+        this.db.prepare('UPDATE flats SET manual_accept = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?').run(accepted ? 1 : 0, flatId);
+    }
+
     setRejectionReason(flatId: number, reason: string | null): void {
         this.db.prepare('UPDATE flats SET rejection_reason = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?').run(reason, flatId);
     }
-
     assignPropertyGroup(flatId: number, groupId: number): void {
         this.db.prepare('UPDATE flats SET property_group_id = ? WHERE id = ?').run(groupId, flatId);
     }
@@ -241,7 +267,10 @@ class FlatsDatabase {
 
     private mapStoredFlat(row: Record<string, unknown>): StoredFlat {
         return {
-            id: Number(row.id), source: String(row.source), url: String(row.url), imageUrl: (row.image_url as string | null) ?? null, rejectionReason: (row.rejection_reason as string | null) ?? null, uncertaintyReason: (row.uncertainty_reason as string | null) ?? null, title: String(row.title),
+            id: Number(row.id), source: String(row.source), url: String(row.url), imageUrl: (row.image_url as string | null) ?? null,
+            rejectionReason: (row.rejection_reason as string | null) ?? null,
+            uncertaintyReason: (row.uncertainty_reason as string | null) ?? null,
+            title: String(row.title),
             description: (row.description as string | null) ?? null, price: (row.price as number | null) ?? null,
             area: (row.area as number | null) ?? null, rooms: (row.rooms as number | null) ?? null,
             address: (row.address as string | null) ?? null, floor: (row.floor as number | null) ?? null,
@@ -260,7 +289,7 @@ class FlatsDatabase {
             hasGarden: fromSqlBoolean(row.has_garden as number | null),
             ownershipType: (row.ownership_type as string | null) ?? null,
             marketType: (row.market_type as string | null) ?? null,
-            hidden: Boolean(row.hidden), rent: (row.rent as number | null) ?? null,
+            hidden: Boolean(row.hidden), manualAccept: Boolean(row.manual_accept), rent: (row.rent as number | null) ?? null,
             commission: (row.commission as string | null) ?? null,
             listingStatus: (row.listing_status as string | null) ?? null,
             propertyGroupId: (row.property_group_id as number | null) ?? null,
@@ -271,42 +300,6 @@ class FlatsDatabase {
     getAllUrls(): string[] {
         const rows = this.db.prepare('SELECT url FROM flats').all() as Array<{ url: string }>;
         return rows.map(row => row.url);
-    }
-
-    startScrapeRun(source: string): number {
-        const result = this.db.prepare("INSERT INTO scrape_runs (source, status) VALUES (?, 'running')").run(source);
-        return Number(result.lastInsertRowid);
-    }
-
-    completeScrapeRun(runId: number, listingsFound: number): void {
-        this.updateScrapeRun(runId, 'completed', listingsFound, null);
-    }
-
-    failScrapeRun(runId: number, errorMessage: string): void {
-        this.updateScrapeRun(runId, 'failed', null, errorMessage);
-    }
-
-    getLatestScrapeRun(): ScrapeRun | null {
-        const row = this.db.prepare('SELECT * FROM scrape_runs ORDER BY id DESC LIMIT 1').get() as Record<string, unknown> | undefined;
-        if (!row) return null;
-
-        return {
-            id: Number(row.id),
-            source: String(row.source),
-            status: row.status as ScrapeRun['status'],
-            startedAt: String(row.started_at),
-            completedAt: (row.completed_at as string | null) ?? null,
-            listingsFound: (row.listings_found as number | null) ?? null,
-            errorMessage: (row.error_message as string | null) ?? null
-        };
-    }
-
-    private updateScrapeRun(runId: number, status: ScrapeRun['status'], listingsFound: number | null, errorMessage: string | null): void {
-        this.db.prepare(`
-            UPDATE scrape_runs
-            SET status = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), listings_found = ?, error_message = ?
-            WHERE id = ?
-        `).run(status, listingsFound, errorMessage, runId);
     }
 
     getNewFlats(limit = 10): unknown[] {
