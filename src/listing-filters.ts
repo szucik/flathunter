@@ -21,7 +21,7 @@ export function matchesConfiguredFilters(
     const minArea = parseConfiguredNumber(process.env.MIN_AREA, 0);
     if (flat.area === null || flat.area < minArea) return false;
 
-    if (process.env.REQUIRE_ELEVATOR !== 'false' && flat.hasElevator !== true) return false;
+    if (process.env.REQUIRE_ELEVATOR !== 'false' && !elevatorRequirementSatisfied(flat)) return false;
     if (process.env.REQUIRE_GARAGE !== 'false' && !hasRequiredParking(flat)) return false;
     if (process.env.REQUIRE_BALCONY !== 'false' && !hasOutdoorSpace(flat)) return false;
 
@@ -45,8 +45,11 @@ export function isUncertainListing(flat: Flat): boolean {
     if (flat.area !== null && flat.area < minArea) return false;
 
     if (flat.price === null || flat.area === null) return true;
-    if (process.env.REQUIRE_ELEVATOR !== 'false' && flat.hasElevator === null) return true;
+    if (process.env.REQUIRE_ELEVATOR !== 'false' && flat.hasElevator === false && !elevatorRequirementSatisfied(flat)) return false;
+    if (process.env.REQUIRE_ELEVATOR !== 'false' && flat.hasElevator === null && !elevatorRequirementSatisfied(flat)) return true;
+    if (process.env.REQUIRE_GARAGE !== 'false' && flat.hasGarage === false && flat.hasParkingSpace === false) return false;
     if (process.env.REQUIRE_GARAGE !== 'false' && flat.hasGarage === null && flat.hasParkingSpace === null) return true;
+    if (process.env.REQUIRE_BALCONY !== 'false' && flat.hasBalcony === false && flat.hasGarden === false) return false;
     if (process.env.REQUIRE_BALCONY !== 'false' && flat.hasBalcony !== true && flat.hasGarden !== true) return true;
 
     return false;
@@ -88,7 +91,7 @@ export function getRejectionReasons(flat: Flat): string[] {
     else if (flat.price > maxPrice) reasons.push(`cena ${flat.price} zł przekracza maksimum ${maxPrice} zł`);
     if (flat.area === null) reasons.push('brak metrażu');
     else if (flat.area < minArea) reasons.push(`metraż ${flat.area} m² jest mniejszy niż minimum ${minArea} m²`);
-    if (process.env.REQUIRE_ELEVATOR !== 'false' && flat.hasElevator !== true) reasons.push(`winda: ${formatFeatureValue(flat.hasElevator)}`);
+    if (process.env.REQUIRE_ELEVATOR !== 'false' && !elevatorRequirementSatisfied(flat)) reasons.push(`winda: ${formatFeatureValue(flat.hasElevator)}`);
     if (process.env.REQUIRE_GARAGE !== 'false' && !hasRequiredParking(flat)) {
         reasons.push(`garaż: ${formatFeatureValue(flat.hasGarage)}; prywatne miejsce: ${formatFeatureValue(flat.hasParkingSpace ?? null)}; rok budowy: ${flat.buildYear ?? 'brak danych'}`);
     }
@@ -100,6 +103,16 @@ export function getRejectionReasons(flat: Flat): string[] {
 
 function hasOutdoorSpace(flat: Flat): boolean {
     return flat.hasBalcony === true || flat.hasGarden === true;
+}
+
+function elevatorRequirementSatisfied(flat: Flat): boolean {
+    return flat.hasElevator === true || (flat.floor === 0 && isNewBuilding(flat));
+}
+
+function isNewBuilding(flat: Flat): boolean {
+    if (/pierwotny/i.test(flat.marketType || '')) return true;
+    const currentYear = new Date().getFullYear();
+    return flat.buildYear !== null && flat.buildYear >= currentYear - 10;
 }
 
 function isExcludedDistrict(value: string | null): boolean {

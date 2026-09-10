@@ -210,7 +210,7 @@ class Parser {
         if (/ogólnodostępne miejsca parkingowe|publiczny parking|garaż\s*\/\s*miejsce parkingowe|garaz\s*\/\s*miejsce parkingowe/i.test(text)) {
             return false;
         }
-        if (/garaż podziemny|garaz podziemny|miejsce postojowe w garażu|miejsce postojowe w garazu/i.test(text)) {
+        if (/garaż podziemny|garażu podziemnym|garaz podziemny|garazu podziemnym|miejsce postojowe w garażu|miejsce postojowe w garazu/i.test(text)) {
             return true;
         }
         return null;

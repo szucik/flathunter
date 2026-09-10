@@ -20,7 +20,7 @@ function matchesConfiguredFilters(flat, reviewBuildingType = null, includeExclud
     const minArea = parseConfiguredNumber(process.env.MIN_AREA, 0);
     if (flat.area === null || flat.area < minArea)
         return false;
-    if (process.env.REQUIRE_ELEVATOR !== 'false' && flat.hasElevator !== true)
+    if (process.env.REQUIRE_ELEVATOR !== 'false' && !elevatorRequirementSatisfied(flat))
         return false;
     if (process.env.REQUIRE_GARAGE !== 'false' && !hasRequiredParking(flat))
         return false;
@@ -46,10 +46,16 @@ function isUncertainListing(flat) {
         return false;
     if (flat.price === null || flat.area === null)
         return true;
-    if (process.env.REQUIRE_ELEVATOR !== 'false' && flat.hasElevator === null)
+    if (process.env.REQUIRE_ELEVATOR !== 'false' && flat.hasElevator === false && !elevatorRequirementSatisfied(flat))
+        return false;
+    if (process.env.REQUIRE_ELEVATOR !== 'false' && flat.hasElevator === null && !elevatorRequirementSatisfied(flat))
         return true;
+    if (process.env.REQUIRE_GARAGE !== 'false' && flat.hasGarage === false && flat.hasParkingSpace === false)
+        return false;
     if (process.env.REQUIRE_GARAGE !== 'false' && flat.hasGarage === null && flat.hasParkingSpace === null)
         return true;
+    if (process.env.REQUIRE_BALCONY !== 'false' && flat.hasBalcony === false && flat.hasGarden === false)
+        return false;
     if (process.env.REQUIRE_BALCONY !== 'false' && flat.hasBalcony !== true && flat.hasGarden !== true)
         return true;
     return false;
@@ -96,7 +102,7 @@ function getRejectionReasons(flat) {
         reasons.push('brak metrażu');
     else if (flat.area < minArea)
         reasons.push(`metraż ${flat.area} m² jest mniejszy niż minimum ${minArea} m²`);
-    if (process.env.REQUIRE_ELEVATOR !== 'false' && flat.hasElevator !== true)
+    if (process.env.REQUIRE_ELEVATOR !== 'false' && !elevatorRequirementSatisfied(flat))
         reasons.push(`winda: ${formatFeatureValue(flat.hasElevator)}`);
     if (process.env.REQUIRE_GARAGE !== 'false' && !hasRequiredParking(flat)) {
         reasons.push(`garaż: ${formatFeatureValue(flat.hasGarage)}; prywatne miejsce: ${formatFeatureValue(flat.hasParkingSpace ?? null)}; rok budowy: ${flat.buildYear ?? 'brak danych'}`);
@@ -108,6 +114,15 @@ function getRejectionReasons(flat) {
 }
 function hasOutdoorSpace(flat) {
     return flat.hasBalcony === true || flat.hasGarden === true;
+}
+function elevatorRequirementSatisfied(flat) {
+    return flat.hasElevator === true || (flat.floor === 0 && isNewBuilding(flat));
+}
+function isNewBuilding(flat) {
+    if (/pierwotny/i.test(flat.marketType || ''))
+        return true;
+    const currentYear = new Date().getFullYear();
+    return flat.buildYear !== null && flat.buildYear >= currentYear - 10;
 }
 function isExcludedDistrict(value) {
     const excluded = parseList(process.env.EXCLUDED_DISTRICTS || 'Ursus,Białołęka,Wawer');

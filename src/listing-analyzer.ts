@@ -3,12 +3,14 @@ import type { Flat } from './types';
 class ListingAnalyzer {
     analyze(flat: Flat): Flat {
         const text = `${flat.title} ${flat.description || ''}`.toLocaleLowerCase('pl-PL');
+        const totalFloors = this.matchTotalFloors(text) ?? flat.totalFloors;
+        const detectedElevator = this.matchPresence(text, [/winda/, /windą/], [/bez windy/, /brak windy/, /bez dźwigu/]) ?? flat.hasElevator;
 
         return {
             ...flat,
             address: this.matchAddress(text) || flat.address,
             floor: this.matchFloor(text) ?? flat.floor,
-            totalFloors: this.matchTotalFloors(text) ?? flat.totalFloors,
+            totalFloors,
             ownershipType: this.matchOwnership(text) || flat.ownershipType,
             area: flat.area ?? this.matchArea(text),
             rent: this.matchMoney(text, /(?:czynsz|opłata administracyjna|oplaty administracyjne)[^\d]{0,20}([\d\s]+)\s*zł/),
@@ -17,7 +19,7 @@ class ListingAnalyzer {
             buildingType: this.matchBuildingType(text, flat),
             hasGarage: this.matchPresence(
                 text,
-                [/garaż podziemny/, /garaz podziemny/, /garaż w budynku/, /garaz w budynku/, /garaż murowany/, /garaz murowany/],
+                [/garaż podziemny/, /garażu podziemnym/, /garaz podziemny/, /garazu podziemnym/, /garaż w budynku/, /garaz w budynku/, /garaż murowany/, /garaz murowany/],
                 [/bez garażu/, /brak garażu/, /bez miejsca postojowego/, /miejsce postojowe[^.\n]{0,30}(?:przed|poza|obok) budynkiem/, /miejsce parkingowe[^.\n]{0,30}(?:przed|poza|obok) budynkiem/, /ogólnodostępne miejsca parkingowe/, /publiczny parking/,
                     /garaż\s*\/\s*miejsce parkingowe/, /garaz\s*\/\s*miejsce parkingowe/,
                     /garaż\s*(?:lub|albo)\s*miejsce parkingowe/, /garaz\s*(?:lub|albo)\s*miejsce parkingowe/]
@@ -25,7 +27,7 @@ class ListingAnalyzer {
             hasParkingSpace: this.matchPresence(text, [/przypisane miejsce postojowe/, /prywatne miejsce postojowe/, /własne miejsce postojowe/, /miejsce postojowe na wyłączność/, /miejsce postojowe nr/, /miejsce parkingowe na wyłączność/, /\b\d+\s+miejsc(?:e|a)?\s+postojow(?:e|ych)\b[^.\n]{0,60}\b(?:w cenie|wliczon)/], [/brak miejsca postojowego/, /ogólnodostępne miejsca parkingowe/, /publiczny parking/]) ?? flat.hasParkingSpace,
             hasStorageUnit: this.matchPresence(text, [/komórka lokatorska/, /komorka lokatorska/], []) ?? flat.hasStorageUnit,
             hasBasement: this.matchPresence(text, [/piwnica/, /pomieszczenie piwniczne/], [/bez piwnicy/, /brak piwnicy/]) ?? flat.hasBasement,
-            hasElevator: this.matchPresence(text, [/winda/, /windą/], [/bez windy/, /brak windy/, /bez dźwigu/]) ?? flat.hasElevator,
+            hasElevator: detectedElevator ?? (totalFloors !== null && totalFloors > 4 ? true : null),
             hasBalcony: this.matchPresence(text, [/balkon/, /loggia/, /taras/], [/bez balkonu/, /brak balkonu/, /bez loggii/, /brak loggii/, /bez tarasu/, /brak tarasu/]) ?? flat.hasBalcony,
             hasGarden: this.matchPresence(text, [/ogródek/, /ogrodek/, /prywatny ogród/, /prywatny ogrod/], [/bez ogródka/, /bez ogrodka/, /brak ogródka/, /brak ogrodka/]) ?? flat.hasGarden,
             buildYear: this.matchBuildYear(text) ?? flat.buildYear

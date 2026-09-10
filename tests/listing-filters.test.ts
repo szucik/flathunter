@@ -142,6 +142,46 @@ test('marks a listing with unknown required features as uncertain', () => {
     assert.equal(isUncertainListing(makeFlat({ hasElevator: null })), true);
 });
 
+test('rejects a listing with a confirmed missing required feature instead of marking it uncertain', () => {
+    Object.assign(process.env, {
+        ALLOWED_DISTRICTS: '', EXCLUDED_DISTRICTS: '', EXCLUDED_BUILDING_TYPES: '',
+        MIN_PRICE: '700000', MAX_PRICE: '1200000', MIN_AREA: '55', REQUIRE_ELEVATOR: 'true',
+        REQUIRE_GARAGE: 'true', REQUIRE_BALCONY: 'true'
+    });
+
+    assert.equal(isUncertainListing(makeFlat({ hasElevator: false })), false);
+});
+
+test('accepts a new ground-floor listing without an elevator', () => {
+    Object.assign(process.env, {
+        ALLOWED_DISTRICTS: '', EXCLUDED_DISTRICTS: '', EXCLUDED_BUILDING_TYPES: '',
+        MIN_PRICE: '700000', MAX_PRICE: '1200000', MIN_AREA: '55', REQUIRE_ELEVATOR: 'true',
+        REQUIRE_GARAGE: 'true', REQUIRE_BALCONY: 'true'
+    });
+
+    assert.equal(matchesConfiguredFilters(makeFlat({ floor: 0, hasElevator: false, marketType: 'pierwotny', buildYear: null })), true);
+});
+
+test('accepts a ground-floor listing from the last ten years without an elevator', () => {
+    Object.assign(process.env, {
+        ALLOWED_DISTRICTS: '', EXCLUDED_DISTRICTS: '', EXCLUDED_BUILDING_TYPES: '',
+        MIN_PRICE: '700000', MAX_PRICE: '1200000', MIN_AREA: '55', REQUIRE_ELEVATOR: 'true',
+        REQUIRE_GARAGE: 'true', REQUIRE_BALCONY: 'true'
+    });
+
+    assert.equal(matchesConfiguredFilters(makeFlat({ floor: 0, hasElevator: false, buildYear: new Date().getFullYear() - 10 })), true);
+});
+
+test('still rejects an old ground-floor listing without an elevator', () => {
+    Object.assign(process.env, {
+        ALLOWED_DISTRICTS: '', EXCLUDED_DISTRICTS: '', EXCLUDED_BUILDING_TYPES: '',
+        MIN_PRICE: '700000', MAX_PRICE: '1200000', MIN_AREA: '55', REQUIRE_ELEVATOR: 'true',
+        REQUIRE_GARAGE: 'true', REQUIRE_BALCONY: 'true'
+    });
+
+    assert.equal(matchesConfiguredFilters(makeFlat({ floor: 0, hasElevator: false, marketType: 'wtórny', buildYear: 1980 })), false);
+});
+
 test('reports the exact missing data that makes a listing uncertain', () => {
     Object.assign(process.env, {
         ALLOWED_DISTRICTS: '', EXCLUDED_DISTRICTS: '', EXCLUDED_BUILDING_TYPES: '',

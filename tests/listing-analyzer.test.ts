@@ -108,6 +108,15 @@ test('does not treat public parking as a private garage', () => {
     assert.equal(analyzed.hasGarage, false);
 });
 
+test('recognizes an underground garage in the inflected Polish form', () => {
+    const analyzed = analyzer.analyze(flat({
+        description: 'Możliwość zakupu miejsca postojowego w garażu podziemnym.',
+        hasGarage: null
+    }));
+
+    assert.equal(analyzed.hasGarage, true);
+});
+
 test('recognizes parking spaces included in the price as private', () => {
     const analyzed = analyzer.analyze(flat({
         description: '109,04 m², 5 pokoi, 2 balkony i 2 miejsca postojowe w cenie. Rynek pierwotny, rok budowy 2026.',
@@ -152,6 +161,26 @@ test('does not require an elevator for a four-floor block', () => {
     }));
 
     assert.equal(analyzed.buildingType, 'wielka plyta');
+});
+
+test('infers an elevator for a block with more than four floors when the listing is silent', () => {
+    const analyzed = analyzer.analyze(flat({
+        description: 'Budynek ma 5 pięter.',
+        hasElevator: null,
+        totalFloors: null
+    }));
+
+    assert.equal(analyzed.hasElevator, true);
+});
+
+test('keeps an explicit lack of elevator over the floor-count inference', () => {
+    const analyzed = analyzer.analyze(flat({
+        description: 'Budynek ma 5 pięter, brak windy.',
+        hasElevator: null,
+        totalFloors: null
+    }));
+
+    assert.equal(analyzed.hasElevator, false);
 });
 
 test('uses secondary-market and low-rent data as supporting signals', () => {

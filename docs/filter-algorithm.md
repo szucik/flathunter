@@ -91,13 +91,15 @@ To może odrzucać dobre ogłoszenia, jeśli metraż jest tylko w opisie, a pars
 
 ### 3.6 Winda
 
-Przy `REQUIRE_ELEVATOR=true` wymagane jest dokładnie:
+Przy `REQUIRE_ELEVATOR=true` winda jest wymagana, z wyjątkiem nowego mieszkania na parterze. Za nowy uznajemy rynek pierwotny albo budynek z roku budowy nie starszego niż 10 lat. Dla budynku z więcej niż czterema piętrami brak informacji o windzie pozwala przyjąć jej obecność, chyba że opis jawnie mówi `brak windy`.
+
+Dla pozostałych ofert wymagane jest:
 
 ```text
 hasElevator === true
 ```
 
-Wartości `false` i `null` oznaczają odrzucenie.
+Wartość `false` oznacza odrzucenie, a `null` oznacza `Niepewne`, chyba że działa wyjątek parteru albo inferencja dla budynku powyżej czterech pięter.
 
 ### 3.7 Garaż lub prywatne miejsce postojowe
 

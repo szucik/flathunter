@@ -45,6 +45,8 @@ If the system does not allow installing operating-system packages, ask an admini
 
 ## Configuration
 
+Deployment and database reset instructions for the OVH VPS are in [docs/deploy-ovh.md](docs/deploy-ovh.md).
+
 Create a local `.env` file from the example:
 
 ```bash
@@ -68,7 +70,7 @@ MIN_AREA=55
 
 # Scraping settings
 HEADLESS=true
-MAX_PAGES=3
+MAX_PAGES=5
 REQUEST_DELAY=2000
 MAX_AGE_DAYS=7
 REQUIRE_ELEVATOR=true
