@@ -2,6 +2,8 @@ export interface Flat {
     source: string;
     url: string;
     imageUrl: string | null;
+    rejectionReason?: string | null;
+    uncertaintyReason?: string | null;
     title: string;
     description: string | null;
     price: number | null;

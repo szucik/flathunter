@@ -20,6 +20,8 @@ class FlatsDatabase {
                 source TEXT NOT NULL DEFAULT 'unknown',
                 url TEXT UNIQUE NOT NULL,
                 image_url TEXT,
+                rejection_reason TEXT,
+                uncertainty_reason TEXT,
                 title TEXT NOT NULL,
                 description TEXT,
                 price INTEGER,
@@ -56,6 +58,15 @@ class FlatsDatabase {
                 scraped_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         `);
+        this.db.exec(`CREATE TABLE IF NOT EXISTS scrape_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL,
+            status TEXT NOT NULL,
+            started_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            completed_at TEXT,
+            listings_found INTEGER,
+            error_message TEXT
+        )`);
         this.addMissingColumnsForExistingDatabase();
         this.db.exec("UPDATE flats SET image_url = NULL WHERE image_url LIKE '%no_thumbnail%' OR image_url LIKE '/app/%'");
         this.normalizeStoredUrls();
@@ -69,6 +80,8 @@ class FlatsDatabase {
         const missingColumns = [
             ['source', "TEXT NOT NULL DEFAULT 'unknown'"],
             ['image_url', 'TEXT'],
+            ['rejection_reason', 'TEXT'],
+            ['uncertainty_reason', 'TEXT'],
             ['description', 'TEXT'],
             ['rooms', 'INTEGER'],
             ['address', 'TEXT'],
@@ -129,17 +142,17 @@ class FlatsDatabase {
     insertFlat(flat) {
         const result = this.db.prepare(`
             INSERT OR IGNORE INTO flats (
-                source, url, image_url, title, description, price, area, rooms, address, floor, total_floors,
+                source, url, image_url, rejection_reason, uncertainty_reason, title, description, price, area, rooms, address, floor, total_floors,
                 price_per_m2, district, created_at, published_at, refreshed_at, building_type,
                 has_garage, has_parking_space, has_storage_unit, has_basement, has_elevator, has_balcony, has_garden, build_year, ownership_type, market_type, rent, commission, listing_status
-            ) VALUES (${Array.from({ length: 30 }, () => '?').join(', ')})
-        `).run(flat.source, flat.url, flat.imageUrl, flat.title, flat.description, flat.price, flat.area, flat.rooms, flat.address, flat.floor, flat.totalFloors, flat.pricePerM2, flat.district, flat.createdAt, flat.publishedAt, flat.refreshedAt, flat.buildingType, toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasParkingSpace ?? null), toSqlBoolean(flat.hasStorageUnit ?? null), toSqlBoolean(flat.hasBasement ?? null), toSqlBoolean(flat.hasElevator), toSqlBoolean(flat.hasBalcony), toSqlBoolean(flat.hasGarden), flat.buildYear, flat.ownershipType, flat.marketType ?? null, flat.rent, flat.commission, flat.listingStatus);
+            ) VALUES (${Array.from({ length: 32 }, () => '?').join(', ')})
+        `).run(flat.source, flat.url, flat.imageUrl, flat.rejectionReason ?? null, flat.uncertaintyReason ?? null, flat.title, flat.description, flat.price, flat.area, flat.rooms, flat.address, flat.floor, flat.totalFloors, flat.pricePerM2, flat.district, flat.createdAt, flat.publishedAt, flat.refreshedAt, flat.buildingType, toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasParkingSpace ?? null), toSqlBoolean(flat.hasStorageUnit ?? null), toSqlBoolean(flat.hasBasement ?? null), toSqlBoolean(flat.hasElevator), toSqlBoolean(flat.hasBalcony), toSqlBoolean(flat.hasGarden), flat.buildYear, flat.ownershipType, flat.marketType ?? null, flat.rent, flat.commission, flat.listingStatus);
         return result.changes > 0;
     }
     updateFlat(flat) {
         this.db.prepare(`
             UPDATE flats SET
-                source = ?, image_url = COALESCE(?, image_url), title = ?, price = ?, area = ?, rooms = ?, address = ?, floor = ?, total_floors = ?, price_per_m2 = ?,
+                source = ?, image_url = COALESCE(?, image_url), rejection_reason = ?, uncertainty_reason = ?, title = ?, price = ?, area = ?, rooms = ?, address = ?, floor = ?, total_floors = ?, price_per_m2 = ?,
                 district = ?, created_at = ?, published_at = ?, refreshed_at = ?,
                 building_type = COALESCE(manual_building_type, ?),
                 has_garage = COALESCE(?, has_garage), has_elevator = COALESCE(?, has_elevator),
@@ -151,10 +164,29 @@ class FlatsDatabase {
                 commission = COALESCE(?, commission), listing_status = COALESCE(?, listing_status),
                 last_seen_at = CURRENT_TIMESTAMP
             WHERE url = ?
-        `).run(flat.source, flat.imageUrl, flat.title, flat.price, flat.area, flat.rooms, flat.address, flat.floor, flat.totalFloors, flat.pricePerM2, flat.district, flat.createdAt, flat.publishedAt, flat.refreshedAt, flat.buildingType, toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasParkingSpace ?? null), toSqlBoolean(flat.hasStorageUnit ?? null), toSqlBoolean(flat.hasBasement ?? null), toSqlBoolean(flat.hasElevator), toSqlBoolean(flat.hasBalcony), toSqlBoolean(flat.hasGarden), flat.buildYear, flat.ownershipType, flat.marketType ?? null, flat.rent, flat.commission, flat.listingStatus, flat.url);
+        `).run(flat.source, flat.imageUrl, flat.rejectionReason ?? null, flat.uncertaintyReason ?? null, flat.title, flat.price, flat.area, flat.rooms, flat.address, flat.floor, flat.totalFloors, flat.pricePerM2, flat.district, flat.createdAt, flat.publishedAt, flat.refreshedAt, flat.buildingType, toSqlBoolean(flat.hasGarage), toSqlBoolean(flat.hasParkingSpace ?? null), toSqlBoolean(flat.hasStorageUnit ?? null), toSqlBoolean(flat.hasBasement ?? null), toSqlBoolean(flat.hasElevator), toSqlBoolean(flat.hasBalcony), toSqlBoolean(flat.hasGarden), flat.buildYear, flat.ownershipType, flat.marketType ?? null, flat.rent, flat.commission, flat.listingStatus, flat.url);
     }
     getAllFlats() {
         return this.db.prepare('SELECT * FROM flats').all().map(row => this.mapStoredFlat(row));
+    }
+    startScrapeRun(source) {
+        const result = this.db.prepare("INSERT INTO scrape_runs (source, status) VALUES (?, 'running')").run(source);
+        return Number(result.lastInsertRowid);
+    }
+    completeScrapeRun(runId, listingsFound) {
+        this.updateScrapeRun(runId, 'completed', listingsFound, null);
+    }
+    failScrapeRun(runId, errorMessage) {
+        this.updateScrapeRun(runId, 'failed', null, errorMessage);
+    }
+    getLatestScrapeRun() {
+        const row = this.db.prepare('SELECT * FROM scrape_runs ORDER BY id DESC LIMIT 1').get();
+        if (!row)
+            return null;
+        return { id: Number(row.id), source: String(row.source), status: row.status, startedAt: String(row.started_at), completedAt: row.completed_at ?? null, listingsFound: row.listings_found ?? null, errorMessage: row.error_message ?? null };
+    }
+    updateScrapeRun(runId, status, listingsFound, errorMessage) {
+        this.db.prepare("UPDATE scrape_runs SET status = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), listings_found = ?, error_message = ? WHERE id = ?").run(status, listingsFound, errorMessage, runId);
     }
     setManualBuildingType(flatId, buildingType) {
         this.db.prepare(`
@@ -166,15 +198,12 @@ class FlatsDatabase {
     setHidden(flatId, hidden) {
         this.db.prepare('UPDATE flats SET hidden = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?').run(hidden ? 1 : 0, flatId);
     }
-<<<<<<< Updated upstream
-=======
     setManualAccept(flatId, accepted) {
         this.db.prepare('UPDATE flats SET manual_accept = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?').run(accepted ? 1 : 0, flatId);
     }
     setRejectionReason(flatId, reason) {
         this.db.prepare('UPDATE flats SET rejection_reason = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?').run(reason, flatId);
     }
->>>>>>> Stashed changes
     assignPropertyGroup(flatId, groupId) {
         this.db.prepare('UPDATE flats SET property_group_id = ? WHERE id = ?').run(groupId, flatId);
     }
@@ -192,7 +221,10 @@ class FlatsDatabase {
     }
     mapStoredFlat(row) {
         return {
-            id: Number(row.id), source: String(row.source), url: String(row.url), imageUrl: row.image_url ?? null, title: String(row.title),
+            id: Number(row.id), source: String(row.source), url: String(row.url), imageUrl: row.image_url ?? null,
+            rejectionReason: row.rejection_reason ?? null,
+            uncertaintyReason: row.uncertainty_reason ?? null,
+            title: String(row.title),
             description: row.description ?? null, price: row.price ?? null,
             area: row.area ?? null, rooms: row.rooms ?? null,
             address: row.address ?? null, floor: row.floor ?? null,

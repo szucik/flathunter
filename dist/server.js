@@ -22,6 +22,10 @@ async function requestHandler(request, response) {
             await sendProperties(requestUrl, response);
             return;
         }
+        if (requestUrl.pathname === '/api/scrape-status') {
+            sendScrapeStatus(response);
+            return;
+        }
         if (requestUrl.pathname === '/api/health') {
             sendJson(response, 200, { ok: true });
             return;
@@ -84,8 +88,6 @@ async function updateHidden(id, request, response) {
         db.close();
     }
 }
-<<<<<<< Updated upstream
-=======
 async function updateManualAccept(id, request, response) {
     const payload = JSON.parse(await readRequestBody(request));
     if (typeof payload.accepted !== 'boolean') {
@@ -110,7 +112,6 @@ function sendScrapeStatus(response) {
         db.close();
     }
 }
->>>>>>> Stashed changes
 function readRequestBody(request) {
     return new Promise((resolve, reject) => {
         let body = '';
@@ -130,21 +131,16 @@ async function sendListings(requestUrl, response) {
         const reviewBuildingType = requestUrl.searchParams.get('reviewBuildingType');
         const showHidden = requestUrl.searchParams.get('showHidden') === 'true';
         const showUncertain = requestUrl.searchParams.get('uncertain') === 'true';
+        const showRejected = requestUrl.searchParams.get('rejected') === 'true';
         const page = parsePage(requestUrl.searchParams.get('page'));
         const pageSize = parsePageSize(requestUrl.searchParams.get('pageSize') || requestUrl.searchParams.get('limit'));
         const filteredListings = db.getAllFlats()
             .filter(flat => Boolean(flat.hidden) === showHidden)
-<<<<<<< Updated upstream
-            .filter(flat => showUncertain
-            ? (0, listing_filters_1.isUncertainListing)(flat)
-            : (0, listing_filters_1.matchesConfiguredFilters)(flat, reviewBuildingType, includeExcludedBuildingTypes))
-=======
             .filter(flat => showRejected
             ? Boolean(flat.rejectionReason) && !flat.manualAccept
             : showUncertain
                 ? (0, listing_filters_1.isUncertainListing)(flat) && !flat.manualAccept
                 : ((0, listing_filters_1.matchesConfiguredFilters)(flat, reviewBuildingType, includeExcludedBuildingTypes) || (!reviewBuildingType && Boolean(flat.manualAccept))))
->>>>>>> Stashed changes
             .filter(flat => reviewBuildingType
             ? normalizeValue(flat.buildingType || '') === normalizeValue(reviewBuildingType)
             : true)
@@ -168,21 +164,16 @@ async function sendProperties(requestUrl, response) {
         const reviewBuildingType = requestUrl.searchParams.get('reviewBuildingType');
         const showHidden = requestUrl.searchParams.get('showHidden') === 'true';
         const showUncertain = requestUrl.searchParams.get('uncertain') === 'true';
+        const showRejected = requestUrl.searchParams.get('rejected') === 'true';
         const page = parsePage(requestUrl.searchParams.get('page'));
         const pageSize = parsePageSize(requestUrl.searchParams.get('pageSize') || requestUrl.searchParams.get('limit'));
         const listings = db.getAllFlats()
             .filter(flat => Boolean(flat.hidden) === showHidden)
-<<<<<<< Updated upstream
-            .filter(flat => showUncertain
-            ? (0, listing_filters_1.isUncertainListing)(flat)
-            : (0, listing_filters_1.matchesConfiguredFilters)(flat, reviewBuildingType, includeExcludedBuildingTypes))
-=======
             .filter(flat => showRejected
             ? Boolean(flat.rejectionReason) && !flat.manualAccept
             : showUncertain
                 ? (0, listing_filters_1.isUncertainListing)(flat) && !flat.manualAccept
                 : ((0, listing_filters_1.matchesConfiguredFilters)(flat, reviewBuildingType, includeExcludedBuildingTypes) || (!reviewBuildingType && Boolean(flat.manualAccept))))
->>>>>>> Stashed changes
             .filter(flat => reviewBuildingType
             ? normalizeValue(flat.buildingType || '') === normalizeValue(reviewBuildingType)
             : true)

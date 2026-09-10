@@ -37,11 +37,8 @@
         .facts > div { min-width: 0; }
         .facts strong { display: block; margin-top: 2px; color: var(--ink); font-size: .88rem; line-height: 1.25; overflow-wrap: anywhere; }
         .description { grid-column: 1 / -1; margin: 4px 0 0; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; line-height: 1.6; }
-<<<<<<< Updated upstream
-=======
         .rejection-reason { margin-top: 8px; color: var(--price); font: 700 .78rem/1.35 sans-serif; }
         .manual-accept-badge { margin-top: 8px; color: var(--accent); font: 700 .78rem/1.35 sans-serif; }
->>>>>>> Stashed changes
         article a { color: var(--ink); font-family: sans-serif; font-weight: 700; text-decoration: none; }
         .sources { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 14px; font: 700 .75rem/1.2 sans-serif; text-transform: uppercase; }
         .source { padding: 5px 7px; border: 1px solid var(--line); border-radius: 3px; }
@@ -188,11 +185,8 @@
                     ${main.imageUrl ? `<div class="listing-image"><img src="${escapeAttribute(main.imageUrl)}" alt="" loading="lazy"></div>` : '<div class="listing-image no-image">Brak zdjęcia</div>'}
                     <div class="listing-summary">
                         <h2>${formatTitle(main.title)}</h2>
-<<<<<<< Updated upstream
-=======
                         ${main.rejectionReason || main.uncertaintyReason ? `<div class="rejection-reason">Powód: ${escapeHtml(main.rejectionReason || main.uncertaintyReason)}</div>` : ''}
                         ${main.manualAccept ? '<div class="manual-accept-badge">Zatwierdzona ręcznie</div>' : ''}
->>>>>>> Stashed changes
                         <div class="manual-actions">
                             <select data-manual-id="${main.id}" data-current-type="${escapeAttribute(main.buildingType || '')}" aria-label="Oznacz jako">
                                 <option value="" ${!['wielka plyta', 'rama h', 'kamienica'].includes(main.buildingType) ? 'selected' : ''}>Oznacz jako</option>
