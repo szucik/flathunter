@@ -49,6 +49,20 @@ test('parses Otodom detail fields', () => {
     assert.match(flat.description || '', /Kartaginy/);
 });
 
+test('falls back to the og:image meta tag when the search card had no thumbnail', () => {
+    const html = '<html><head><meta property="og:image" content="https://ireland.apollo.olxcdn.com/v1/files/example/image;s=1200x0;q=80"></head><body></body></html>';
+    const flat = parser.parseDetailPage(html);
+
+    assert.equal(flat.imageUrl, 'https://ireland.apollo.olxcdn.com/v1/files/example/image;s=1200x0;q=80');
+});
+
+test('ignores a placeholder og:image meta tag', () => {
+    const html = '<html><head><meta property="og:image" content="/app/static/media/no_thumbnail.svg"></head><body></body></html>';
+    const flat = parser.parseDetailPage(html);
+
+    assert.equal(flat.imageUrl, null);
+});
+
 test('detects explicit large-panel construction from Otodom details', () => {
     const html = readFileSync('patterns/otodom-wielkapłyta.html', 'utf8');
     const flat = parser.parseDetailPage(html);

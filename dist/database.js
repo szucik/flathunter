@@ -46,6 +46,7 @@ class FlatsDatabase {
                 market_type TEXT,
                 manual_building_type TEXT,
                 hidden INTEGER NOT NULL DEFAULT 0,
+                manual_accept INTEGER NOT NULL DEFAULT 0,
                 rent INTEGER,
                 commission TEXT,
                 listing_status TEXT,
@@ -88,6 +89,7 @@ class FlatsDatabase {
             ['market_type', 'TEXT'],
             ['manual_building_type', 'TEXT'],
             ['hidden', 'INTEGER NOT NULL DEFAULT 0'],
+            ['manual_accept', 'INTEGER NOT NULL DEFAULT 0'],
             ['rent', 'INTEGER'],
             ['commission', 'TEXT'],
             ['listing_status', 'TEXT'],
@@ -164,6 +166,15 @@ class FlatsDatabase {
     setHidden(flatId, hidden) {
         this.db.prepare('UPDATE flats SET hidden = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?').run(hidden ? 1 : 0, flatId);
     }
+<<<<<<< Updated upstream
+=======
+    setManualAccept(flatId, accepted) {
+        this.db.prepare('UPDATE flats SET manual_accept = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?').run(accepted ? 1 : 0, flatId);
+    }
+    setRejectionReason(flatId, reason) {
+        this.db.prepare('UPDATE flats SET rejection_reason = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?').run(reason, flatId);
+    }
+>>>>>>> Stashed changes
     assignPropertyGroup(flatId, groupId) {
         this.db.prepare('UPDATE flats SET property_group_id = ? WHERE id = ?').run(groupId, flatId);
     }
@@ -200,7 +211,7 @@ class FlatsDatabase {
             hasGarden: fromSqlBoolean(row.has_garden),
             ownershipType: row.ownership_type ?? null,
             marketType: row.market_type ?? null,
-            hidden: Boolean(row.hidden), rent: row.rent ?? null,
+            hidden: Boolean(row.hidden), manualAccept: Boolean(row.manual_accept), rent: row.rent ?? null,
             commission: row.commission ?? null,
             listingStatus: row.listing_status ?? null,
             propertyGroupId: row.property_group_id ?? null,

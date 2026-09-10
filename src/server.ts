@@ -38,6 +38,12 @@ async function requestHandler(request: IncomingMessage, response: ServerResponse
             return;
         }
 
+        const manualAcceptMatch = requestUrl.pathname.match(/^\/api\/listings\/(\d+)\/manual-accept$/);
+        if (manualAcceptMatch && request.method === 'POST') {
+            await updateManualAccept(Number(manualAcceptMatch[1]), request, response);
+            return;
+        }
+
         if (requestUrl.pathname === '/' || requestUrl.pathname === '/index.html') {
             await sendFile(response, 'index.html', 'text/html; charset=utf-8');
             return;
@@ -83,6 +89,33 @@ async function updateHidden(id: number, request: IncomingMessage, response: Serv
     }
 }
 
+<<<<<<< Updated upstream
+=======
+async function updateManualAccept(id: number, request: IncomingMessage, response: ServerResponse): Promise<void> {
+    const payload = JSON.parse(await readRequestBody(request)) as { accepted?: unknown };
+    if (typeof payload.accepted !== 'boolean') {
+        sendJson(response, 400, { error: 'accepted must be boolean' });
+        return;
+    }
+    const db = new FlatsDatabase();
+    try {
+        db.setManualAccept(id, payload.accepted);
+        sendJson(response, 200, { ok: true, id, accepted: payload.accepted });
+    } finally {
+        db.close();
+    }
+}
+
+function sendScrapeStatus(response: ServerResponse): void {
+    const db = new FlatsDatabase();
+    try {
+        sendJson(response, 200, { latestRun: db.getLatestScrapeRun() });
+    } finally {
+        db.close();
+    }
+}
+
+>>>>>>> Stashed changes
 function readRequestBody(request: IncomingMessage): Promise<string> {
     return new Promise((resolve, reject) => {
         let body = '';
@@ -107,9 +140,17 @@ async function sendListings(requestUrl: URL, response: ServerResponse): Promise<
         const pageSize = parsePageSize(requestUrl.searchParams.get('pageSize') || requestUrl.searchParams.get('limit'));
         const filteredListings = db.getAllFlats()
             .filter(flat => Boolean(flat.hidden) === showHidden)
+<<<<<<< Updated upstream
             .filter(flat => showUncertain
                 ? isUncertainListing(flat)
                 : matchesConfiguredFilters(flat, reviewBuildingType, includeExcludedBuildingTypes))
+=======
+            .filter(flat => showRejected
+                ? Boolean(flat.rejectionReason) && !flat.manualAccept
+                : showUncertain
+                ? isUncertainListing(flat) && !flat.manualAccept
+                : (matchesConfiguredFilters(flat, reviewBuildingType, includeExcludedBuildingTypes) || (!reviewBuildingType && Boolean(flat.manualAccept))))
+>>>>>>> Stashed changes
             .filter(flat => reviewBuildingType
                 ? normalizeValue(flat.buildingType || '') === normalizeValue(reviewBuildingType)
                 : true)
@@ -138,9 +179,17 @@ async function sendProperties(requestUrl: URL, response: ServerResponse): Promis
         const pageSize = parsePageSize(requestUrl.searchParams.get('pageSize') || requestUrl.searchParams.get('limit'));
         const listings = db.getAllFlats()
             .filter(flat => Boolean(flat.hidden) === showHidden)
+<<<<<<< Updated upstream
             .filter(flat => showUncertain
                 ? isUncertainListing(flat)
                 : matchesConfiguredFilters(flat, reviewBuildingType, includeExcludedBuildingTypes))
+=======
+            .filter(flat => showRejected
+                ? Boolean(flat.rejectionReason) && !flat.manualAccept
+                : showUncertain
+                ? isUncertainListing(flat) && !flat.manualAccept
+                : (matchesConfiguredFilters(flat, reviewBuildingType, includeExcludedBuildingTypes) || (!reviewBuildingType && Boolean(flat.manualAccept))))
+>>>>>>> Stashed changes
             .filter(flat => reviewBuildingType
                 ? normalizeValue(flat.buildingType || '') === normalizeValue(reviewBuildingType)
                 : true)

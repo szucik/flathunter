@@ -30,7 +30,8 @@ class OlxScraper {
                 allFlats.push(...newFlats);
                 console.log(`Znaleziono ${newFlats.length} unikalnych ogloszen na stronie ${pageNum}`);
                 for (const flat of newFlats) {
-                    Object.assign(flat, await this.fetchDetails(page, flat.url));
+                    const details = await this.fetchDetails(page, flat.url);
+                    Object.assign(flat, details, { imageUrl: flat.imageUrl ?? details.imageUrl ?? null });
                 }
                 if (pageNum < maxPages) {
                     await this.randomDelay(parseInt(process.env.REQUEST_DELAY || '2000', 10));
@@ -50,12 +51,23 @@ class OlxScraper {
     async fetchDetails(page, url) {
         try {
             await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+            await this.dismissCookieConsent(page);
             await page.waitForSelector('[data-sentry-component="AdDetailsBase"], [data-cy="ad_description"], [data-cy="adPageAdDescription"], [data-testid="ad_description"]', { timeout: 15000 });
             return this.parser.parseDetailPage(await page.content());
         }
         catch (error) {
             console.warn(`Nie udalo sie pobrac opisu ${url}:`, getErrorMessage(error));
             return {};
+        }
+    }
+    // Otodom/OLX pokazują baner CMP, który przesłania treść i blokuje waitForSelector.
+    async dismissCookieConsent(page) {
+        const consentButton = page.getByRole('button', { name: 'Akceptuj wszystkie' });
+        try {
+            await consentButton.click({ timeout: 3000 });
+        }
+        catch {
+            // Baner nie pojawił się lub już został zamknięty - nic do zrobienia.
         }
     }
     async randomDelay(baseDelay) {

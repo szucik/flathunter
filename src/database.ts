@@ -46,6 +46,7 @@ class FlatsDatabase {
                 market_type TEXT,
                 manual_building_type TEXT,
                 hidden INTEGER NOT NULL DEFAULT 0,
+                manual_accept INTEGER NOT NULL DEFAULT 0,
                 rent INTEGER,
                 commission TEXT,
                 listing_status TEXT,
@@ -89,6 +90,7 @@ class FlatsDatabase {
             ['market_type', 'TEXT'],
             ['manual_building_type', 'TEXT'],
             ['hidden', 'INTEGER NOT NULL DEFAULT 0'],
+            ['manual_accept', 'INTEGER NOT NULL DEFAULT 0'],
             ['rent', 'INTEGER'],
             ['commission', 'TEXT'],
             ['listing_status', 'TEXT'],
@@ -191,6 +193,17 @@ class FlatsDatabase {
         this.db.prepare('UPDATE flats SET hidden = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?').run(hidden ? 1 : 0, flatId);
     }
 
+<<<<<<< Updated upstream
+=======
+    setManualAccept(flatId: number, accepted: boolean): void {
+        this.db.prepare('UPDATE flats SET manual_accept = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?').run(accepted ? 1 : 0, flatId);
+    }
+
+    setRejectionReason(flatId: number, reason: string | null): void {
+        this.db.prepare('UPDATE flats SET rejection_reason = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?').run(reason, flatId);
+    }
+
+>>>>>>> Stashed changes
     assignPropertyGroup(flatId: number, groupId: number): void {
         this.db.prepare('UPDATE flats SET property_group_id = ? WHERE id = ?').run(groupId, flatId);
     }
@@ -231,7 +244,7 @@ class FlatsDatabase {
             hasGarden: fromSqlBoolean(row.has_garden as number | null),
             ownershipType: (row.ownership_type as string | null) ?? null,
             marketType: (row.market_type as string | null) ?? null,
-            hidden: Boolean(row.hidden), rent: (row.rent as number | null) ?? null,
+            hidden: Boolean(row.hidden), manualAccept: Boolean(row.manual_accept), rent: (row.rent as number | null) ?? null,
             commission: (row.commission as string | null) ?? null,
             listingStatus: (row.listing_status as string | null) ?? null,
             propertyGroupId: (row.property_group_id as number | null) ?? null,
