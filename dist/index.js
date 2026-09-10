@@ -32,6 +32,7 @@ async function main() {
     const matcher = new property_matcher_1.default();
     const notifier = createNotifier();
     const db = new database_1.default();
+    const scrapeRunId = db.startScrapeRun(source.name);
     try {
         console.log(`URL: ${targetUrl}`);
         console.log(`Max stron: ${maxPages}`);
@@ -47,21 +48,33 @@ async function main() {
         const flats = await source.scrape(targetUrl, maxPages, knownUrls, maxAgeDays);
         const storedFlats = db.getAllFlats();
         let newCount = 0;
-        let filteredCount = 0;
+        let uncertainCount = 0;
+        let rejectedCount = 0;
+        let acceptedCount = 0;
         for (const flat of flats) {
             const analyzedFlat = analyzer.analyze(flat);
             const matchesFilters = (0, listing_filters_1.matchesConfiguredFilters)(analyzedFlat);
             const uncertain = !matchesFilters && (0, listing_filters_1.isUncertainListing)(analyzedFlat);
             if (!matchesFilters && !uncertain) {
-                filteredCount++;
+                rejectedCount++;
+                const rejectionReason = (0, listing_filters_1.getRejectionReasons)(analyzedFlat).join(', ');
+                const rejectedFlat = { ...analyzedFlat, rejectionReason, uncertaintyReason: null };
+                db.updateFlat(rejectedFlat);
+                db.insertFlat(rejectedFlat);
+                const savedRejected = db.getFlatByUrl(analyzedFlat.url);
+                if (savedRejected)
+                    db.setRejectionReason(savedRejected.id, rejectionReason);
                 continue;
             }
-            db.updateFlat(analyzedFlat);
-            const inserted = db.insertFlat(analyzedFlat);
+            const uncertaintyReason = uncertain ? (0, listing_filters_1.getUncertaintyReasons)(analyzedFlat).join(', ') : null;
+            const acceptedFlat = { ...analyzedFlat, rejectionReason: null, uncertaintyReason };
+            db.updateFlat(acceptedFlat);
+            const inserted = db.insertFlat(acceptedFlat);
             if (uncertain) {
-                filteredCount++;
+                uncertainCount++;
                 continue;
             }
+            acceptedCount++;
             if (inserted) {
                 const savedFlat = db.getFlatByUrl(analyzedFlat.url);
                 if (savedFlat) {
@@ -81,13 +94,17 @@ async function main() {
         }
         console.log('='.repeat(50));
         console.log(`Znaleziono: ${flats.length}`);
-        console.log(`Nowych: ${newCount}`);
-        console.log(`Odfiltrowanych: ${filteredCount}`);
+        console.log(`Zaakceptowanych: ${acceptedCount}`);
+        console.log(`Niepewnych: ${uncertainCount}`);
+        console.log(`Odrzuconych: ${rejectedCount}`);
+        console.log(`Nowych zaakceptowanych: ${newCount}`);
         console.log('='.repeat(50));
         db.cleanup(30);
+        db.completeScrapeRun(scrapeRunId, flats.length);
     }
     catch (error) {
         console.error('Blad:', getErrorMessage(error));
+        db.failScrapeRun(scrapeRunId, getErrorMessage(error));
         throw error;
     }
     finally {

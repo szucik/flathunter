@@ -22,6 +22,11 @@ async function requestHandler(request: IncomingMessage, response: ServerResponse
             return;
         }
 
+        if (requestUrl.pathname === '/api/scrape-status') {
+            sendScrapeStatus(response);
+            return;
+        }
+
         if (requestUrl.pathname === '/api/health') {
             sendJson(response, 200, { ok: true });
             return;
@@ -83,6 +88,15 @@ async function updateHidden(id: number, request: IncomingMessage, response: Serv
     }
 }
 
+function sendScrapeStatus(response: ServerResponse): void {
+    const db = new FlatsDatabase();
+    try {
+        sendJson(response, 200, { latestRun: db.getLatestScrapeRun() });
+    } finally {
+        db.close();
+    }
+}
+
 function readRequestBody(request: IncomingMessage): Promise<string> {
     return new Promise((resolve, reject) => {
         let body = '';
@@ -103,11 +117,14 @@ async function sendListings(requestUrl: URL, response: ServerResponse): Promise<
         const reviewBuildingType = requestUrl.searchParams.get('reviewBuildingType');
         const showHidden = requestUrl.searchParams.get('showHidden') === 'true';
         const showUncertain = requestUrl.searchParams.get('uncertain') === 'true';
+        const showRejected = requestUrl.searchParams.get('rejected') === 'true';
         const page = parsePage(requestUrl.searchParams.get('page'));
         const pageSize = parsePageSize(requestUrl.searchParams.get('pageSize') || requestUrl.searchParams.get('limit'));
         const filteredListings = db.getAllFlats()
             .filter(flat => Boolean(flat.hidden) === showHidden)
-            .filter(flat => showUncertain
+            .filter(flat => showRejected
+                ? Boolean(flat.rejectionReason)
+                : showUncertain
                 ? isUncertainListing(flat)
                 : matchesConfiguredFilters(flat, reviewBuildingType, includeExcludedBuildingTypes))
             .filter(flat => reviewBuildingType
@@ -134,11 +151,14 @@ async function sendProperties(requestUrl: URL, response: ServerResponse): Promis
         const reviewBuildingType = requestUrl.searchParams.get('reviewBuildingType');
         const showHidden = requestUrl.searchParams.get('showHidden') === 'true';
         const showUncertain = requestUrl.searchParams.get('uncertain') === 'true';
+        const showRejected = requestUrl.searchParams.get('rejected') === 'true';
         const page = parsePage(requestUrl.searchParams.get('page'));
         const pageSize = parsePageSize(requestUrl.searchParams.get('pageSize') || requestUrl.searchParams.get('limit'));
         const listings = db.getAllFlats()
             .filter(flat => Boolean(flat.hidden) === showHidden)
-            .filter(flat => showUncertain
+            .filter(flat => showRejected
+                ? Boolean(flat.rejectionReason)
+                : showUncertain
                 ? isUncertainListing(flat)
                 : matchesConfiguredFilters(flat, reviewBuildingType, includeExcludedBuildingTypes))
             .filter(flat => reviewBuildingType
